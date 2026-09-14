@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="text/javascript">
+      //  document.cookie = 'HiATMP-sso-id=aaa5042e64a04df689cb70a1f3bf7dc1';
+    </script>
+    <script
+      type="text/javascript"
+      src="./js/exportWord/jquery-3.4.1.js"
+    ></script>
+    <script type="text/javascript" src="./js/exportWord/filesave.js"></script>
+    <script
+      type="text/javascript"
+      src="./js/exportWord/jquery.wordexport.js"
+    ></script>
+    <script type="text/javascript" src="./config/mapconfig.js"></script>
+    <script type="text/javascript" src="./config/sysparamconfig.js"></script>
+    <script type="text/javascript" src="./config/pageconfig.js"></script>
+    <script type="text/javascript" src="./config/qxtconfig.js"></script>
+    <script type="text/javascript" src="./config/custom.js"></script>
+    <script type="text/javascript" src="./config/speechconfig.js"></script>
+    <script type="text/javascript" src="./config/h5VideoConfig.js"></script>
+    <script type="text/javascript" src="./config/swconfig.js"></script>
+    <link rel="stylesheet" href="./static/tailwind.min.css" />
+    <title></title>
+    <style>
+      #testmodal:empty {
+        display: none;
+      }
+
+      /* 视频播放器外层窗口：top、left、width、height 可调整整体位置和尺寸。 */
+      .video-player {
+        position: absolute;
+        top: 100px;
+        left: 0;
+        /* 高于数字人 iframe，防止重叠区域拦截视频列表和按钮的点击。 */
+        z-index: 1100;
+        display: none;
+        width: 920px;
+        height: 560px;
+        overflow: hidden;
+        color: #e5e7eb;
+        font-family: "Microsoft YaHei", Arial, sans-serif;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+      }
+
+      /* 窗口放大状态：尺寸由 JavaScript 按当前屏幕和页面 zoom 动态计算。 */
+      .video-player.is-window-maximized {
+        z-index: 10000;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .video-player.is-window-maximized .video-player__toolbar {
+        cursor: default;
+      }
+
+      /* 顶部工具栏：包含标题、单/双/四分屏按钮和关闭按钮，同时作为拖动区域。 */
+      .video-player__toolbar {
+        display: flex;
+        align-items: center;
+        height: 52px;
+        padding: 0 12px 0 16px;
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+        background: #111827;
+        border-bottom: 1px solid #334155;
+      }
+
+      /* 拖动过程中把鼠标样式改为“抓取中”，让操作状态更明确。 */
+      .video-player.is-dragging .video-player__toolbar {
+        cursor: grabbing;
+      }
+
+      .video-player__title {
+        margin: 0 auto 0 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .video-player__layout-buttons {
+        display: flex;
+        gap: 8px;
+        margin-right: 12px;
+      }
+
+      .video-player__layout-button {
+        padding: 6px 12px;
+        color: #cbd5e1;
+        cursor: pointer;
+        background: #1e293b;
+        border: 1px solid #475569;
+        border-radius: 5px;
+      }
+
+      .video-player__window-button {
+        padding: 6px 12px;
+        margin-right: 12px;
+        color: #cbd5e1;
+        cursor: pointer;
+        background: #1e293b;
+        border: 1px solid #475569;
+        border-radius: 5px;
+      }
+
+      .video-player__layout-button:hover,
+      .video-player__layout-button.is-active,
+      .video-player__window-button:hover,
+      .video-player__window-button.is-active {
+        color: #fff;
+        background: #2563eb;
+        border-color: #60a5fa;
+      }
+
+      .video-player__close {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        color: #fff;
+        font-size: 25px;
+        line-height: 1;
+        cursor: pointer;
+        background: rgb(0 0 0 / 35%);
+        border: 1px solid rgb(255 255 255 / 25%);
+        border-radius: 50%;
+        place-items: center;
+        transition:
+          background-color 0.2s ease,
+          transform 0.2s ease;
+      }
+
+      .video-player__close:hover {
+        background: rgb(220 38 38 / 90%);
+        transform: scale(1.06);
+      }
+
+      .video-player button:focus-visible {
+        outline: 3px solid #93c5fd;
+        outline-offset: 2px;
+      }
+
+      /* 主体左侧为视频画面，右侧为可切换的视频列表。 */
+      .video-player__body {
+        display: flex;
+        height: calc(100% - 52px);
+      }
+
+      .video-player__stage {
+        flex: 1;
+        min-width: 0;
+        padding: 8px;
+      }
+
+      /* 单画面占满舞台；双画面左右排列；四画面使用两行两列布局。 */
+      .video-grid {
+        display: grid;
+        width: 100%;
+        height: 100%;
+        gap: 8px;
+      }
+
+      .video-grid[data-split="1"] {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+      }
+
+      /* 双画面采用左右排列，两个视频各占一半宽度。 */
+      .video-grid[data-split="2"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: 1fr;
+      }
+
+      .video-grid[data-split="4"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+      }
+
+      /* 每个画面槽位都有独立 iframe，蓝色边框表示当前待切换的槽位。 */
+      .video-slot {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        background: #020617;
+        border: 2px solid #334155;
+        border-radius: 6px;
+      }
+
+      .video-slot.is-active {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 1px #60a5fa;
+      }
+
+      /* 满屏时只展示当前画面，并让它占满播放器主体区域。 */
+      .video-grid.is-slot-maximized {
+        display: block;
+      }
+
+      .video-grid.is-slot-maximized .video-slot:not(.is-maximized) {
+        display: none !important;
+      }
+
+      .video-grid.is-slot-maximized .video-slot.is-maximized {
+        display: block !important;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* 满屏后隐藏右侧列表，把全部空间让给视频和云台弹层。 */
+      .video-player.is-slot-maximized .video-list-panel {
+        display: none;
+      }
+
+      /* 画面顶部按钮用于选择槽位，避免跨域 iframe 吞掉父页面的点击事件。 */
+      .video-slot__select {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 2;
+        height: 30px;
+        padding: 0 72px 0 10px;
+        overflow: hidden;
+        color: #e2e8f0;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+        background: rgb(15 23 42 / 88%);
+        border: 0;
+        border-bottom: 1px solid #334155;
+      }
+
+      .video-slot.is-active .video-slot__select {
+        color: #fff;
+        background: rgb(37 99 235 / 88%);
+      }
+
+      /* 每路视频保留“画面放大”按钮；视频自身双击负责浏览器全屏。 */
+      .video-slot__actions {
+        position: absolute;
+        top: 4px;
+        right: 5px;
+        z-index: 3;
+        display: flex;
+        gap: 4px;
+      }
+
+      .video-slot__action {
+        height: 22px;
+        padding: 0 7px;
+        color: #e2e8f0;
+        font-size: 11px;
+        cursor: pointer;
+        background: rgb(15 23 42 / 82%);
+        border: 1px solid #64748b;
+        border-radius: 3px;
+      }
+
+      .video-slot__action:hover {
+        color: #fff;
+        background: #2563eb;
+        border-color: #93c5fd;
+      }
+
+
+      .video-player__iframe {
+        position: absolute;
+        top: 30px;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: block;
+        width: 100%;
+        height: calc(100% - 30px);
+        border: 0;
+        color-scheme: light;
+      }
+
+      .video-slot__empty {
+        position: absolute;
+        top: 30px;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: grid;
+        color: #64748b;
+        font-size: 14px;
+        place-items: center;
+      }
+
+      /* hidden 属性由 JavaScript 控制，用于停止隐藏画面继续占用视频流。 */
+      .video-player [hidden] {
+        display: none !important;
+      }
+
+      /* 视频列表同时展示正在播放和未播放状态。 */
+      .video-list-panel {
+        width: 238px;
+        padding: 12px;
+        overflow: hidden;
+        background: #111827;
+        border-left: 1px solid #334155;
+      }
+
+      .video-list-panel__title {
+        margin: 0 0 5px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .video-list-panel__hint {
+        margin: 0 0 10px;
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .video-list {
+        max-height: calc(100% - 65px);
+        padding: 0;
+        margin: 0;
+        overflow-y: auto;
+        list-style: none;
+      }
+
+      .video-list__item + .video-list__item {
+        margin-top: 8px;
+      }
+
+      .video-list__button {
+        display: block;
+        width: 100%;
+        padding: 9px 10px;
+        color: #cbd5e1;
+        text-align: left;
+        cursor: pointer;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 6px;
+      }
+
+      .video-list__button:hover {
+        background: #273449;
+        border-color: #64748b;
+      }
+
+      .video-list__button.is-playing {
+        border-color: #22c55e;
+      }
+
+      .video-list__name,
+      .video-list__code,
+      .video-list__status {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .video-list__name {
+        color: #f8fafc;
+        font-size: 14px;
+      }
+
+      .video-list__code {
+        margin-top: 3px;
+        color: #94a3b8;
+        font-size: 11px;
+      }
+
+      .video-list__status {
+        margin-top: 5px;
+        color: #94a3b8;
+        font-size: 12px;
+      }
+
+      .video-list__button.is-playing .video-list__status {
+        color: #4ade80;
+      }
+
+      /*
+       * 武汉交通指挥舱主题：沿用大屏的深蓝半透明面板、青色描边、切角和微光效果。
+       * 这里只覆盖视频播放器，不改变底层视频页面和主驾驶舱的既有样式。
+       */
+      .video-player {
+        --video-cyan: #16d9ff;
+        --video-cyan-bright: #7cecff;
+        --video-blue: #087bc7;
+        --video-panel: rgb(2 24 43 / 96%);
+        --video-panel-soft: rgb(4 38 66 / 92%);
+        color: #dff8ff;
+        background:
+          linear-gradient(135deg, rgb(9 72 111 / 30%), transparent 34%),
+          linear-gradient(180deg, rgb(4 42 70 / 97%), rgb(1 18 34 / 98%));
+        border: 1px solid rgb(22 217 255 / 82%);
+        border-radius: 0;
+        box-shadow:
+          0 0 0 1px rgb(7 111 178 / 45%) inset,
+          0 0 20px rgb(0 190 255 / 24%),
+          0 18px 45px rgb(0 6 18 / 72%);
+        clip-path: polygon(
+          14px 0,
+          calc(100% - 14px) 0,
+          100% 14px,
+          100% calc(100% - 14px),
+          calc(100% - 14px) 100%,
+          14px 100%,
+          0 calc(100% - 14px),
+          0 14px
+        );
+        backdrop-filter: blur(9px);
+      }
+
+      .video-player::before,
+      .video-player::after {
+        position: absolute;
+        right: 22px;
+        left: 22px;
+        z-index: 5;
+        height: 2px;
+        pointer-events: none;
+        content: "";
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--video-cyan),
+          #fff 50%,
+          var(--video-cyan),
+          transparent
+        );
+        box-shadow: 0 0 10px var(--video-cyan);
+      }
+
+      .video-player::before {
+        top: 0;
+      }
+
+      .video-player::after {
+        bottom: 0;
+      }
+
+      .video-player.is-window-maximized {
+        border-radius: 0;
+        clip-path: none;
+      }
+
+      .video-player__toolbar {
+        position: relative;
+        z-index: 2;
+        height: 48px;
+        padding: 0 14px 0 18px;
+        background:
+          linear-gradient(90deg, rgb(4 34 60 / 98%), rgb(7 65 102 / 96%) 48%, rgb(3 29 53 / 98%)),
+          repeating-linear-gradient(135deg, transparent 0 12px, rgb(36 215 255 / 5%) 12px 14px);
+        border-bottom: 1px solid rgb(22 217 255 / 65%);
+        box-shadow:
+          0 -1px 0 rgb(112 235 255 / 30%) inset,
+          0 5px 16px rgb(0 8 20 / 55%);
+      }
+
+      .video-player__title {
+        position: relative;
+        padding-left: 20px;
+        color: #effcff;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 5px;
+        text-shadow:
+          0 0 8px rgb(78 220 255 / 80%),
+          0 2px 2px rgb(0 0 0 / 80%);
+      }
+
+      .video-player__title::before {
+        position: absolute;
+        top: 50%;
+        left: 1px;
+        width: 9px;
+        height: 9px;
+        content: "";
+        background: var(--video-cyan);
+        box-shadow: 0 0 10px var(--video-cyan);
+        transform: translateY(-50%) rotate(45deg);
+      }
+
+      .video-player__layout-buttons {
+        gap: 5px;
+        margin-right: 10px;
+      }
+
+      .video-player__layout-button,
+      .video-player__window-button {
+        min-width: 58px;
+        height: 28px;
+        padding: 0 10px;
+        color: #9fdbec;
+        font-size: 12px;
+        background: linear-gradient(180deg, rgb(9 69 105 / 86%), rgb(3 35 61 / 92%));
+        border: 1px solid rgb(29 176 220 / 62%);
+        border-radius: 0;
+        box-shadow: 0 0 7px rgb(0 177 255 / 13%) inset;
+        clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+      }
+
+      .video-player__window-button {
+        margin-right: 10px;
+      }
+
+      .video-player__layout-button:hover,
+      .video-player__layout-button.is-active,
+      .video-player__window-button:hover,
+      .video-player__window-button.is-active {
+        color: #fff;
+        background: linear-gradient(180deg, rgb(11 148 205 / 96%), rgb(4 75 123 / 96%));
+        border-color: var(--video-cyan-bright);
+        box-shadow:
+          0 0 11px rgb(22 217 255 / 48%),
+          0 0 9px rgb(135 239 255 / 22%) inset;
+      }
+
+      .video-player__close {
+        width: 30px;
+        height: 30px;
+        color: #bff6ff;
+        font-size: 24px;
+        background: rgb(2 34 57 / 90%);
+        border: 1px solid rgb(22 217 255 / 72%);
+        border-radius: 0;
+        box-shadow: 0 0 8px rgb(22 217 255 / 25%);
+        clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+      }
+
+      .video-player__close:hover {
+        color: #fff;
+        background: rgb(203 35 48 / 90%);
+        border-color: #ff8b98;
+        box-shadow: 0 0 12px rgb(255 62 79 / 65%);
+      }
+
+      .video-player__body {
+        height: calc(100% - 48px);
+        background:
+          radial-gradient(circle at 45% 35%, rgb(9 97 139 / 18%), transparent 44%),
+          var(--video-panel);
+      }
+
+      .video-player__stage {
+        padding: 7px;
+      }
+
+      .video-grid {
+        gap: 5px;
+      }
+
+      .video-slot {
+        background:
+          linear-gradient(135deg, rgb(3 31 52 / 94%), rgb(0 10 21 / 98%));
+        border: 1px solid rgb(15 126 176 / 76%);
+        border-radius: 0;
+        box-shadow:
+          0 0 0 1px rgb(5 39 65 / 85%) inset,
+          0 0 10px rgb(0 170 234 / 10%);
+      }
+
+      .video-slot.is-active {
+        border-color: var(--video-cyan);
+        box-shadow:
+          0 0 0 1px rgb(77 226 255 / 24%) inset,
+          0 0 12px rgb(0 203 255 / 40%);
+      }
+
+      .video-slot__select {
+        color: #bcecf8;
+        background: linear-gradient(90deg, rgb(3 33 56 / 96%), rgb(6 57 86 / 90%));
+        border-bottom: 1px solid rgb(14 137 186 / 58%);
+      }
+
+      .video-slot.is-active .video-slot__select {
+        color: #fff;
+        background: linear-gradient(90deg, rgb(5 93 139 / 98%), rgb(4 55 88 / 92%));
+      }
+
+      .video-slot__action {
+        color: #a8e8f7;
+        background: rgb(2 35 57 / 92%);
+        border-color: rgb(22 178 220 / 56%);
+        border-radius: 0;
+      }
+
+      .video-slot__action:hover {
+        background: rgb(7 117 169 / 94%);
+        border-color: var(--video-cyan-bright);
+      }
+
+      .video-slot__empty {
+        color: #56869a;
+        background:
+          linear-gradient(rgb(11 75 103 / 8%) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(11 75 103 / 8%) 1px, transparent 1px);
+        background-size: 22px 22px;
+      }
+
+      .video-list-panel {
+        width: 232px;
+        padding: 12px 10px;
+        background:
+          linear-gradient(180deg, rgb(4 51 80 / 92%), rgb(1 22 39 / 98%));
+        border-left: 1px solid rgb(22 217 255 / 48%);
+        box-shadow: 7px 0 17px rgb(0 0 0 / 35%) inset;
+      }
+
+      .video-list-panel__title {
+        padding: 0 0 7px 15px;
+        color: #e8fbff;
+        font-size: 15px;
+        letter-spacing: 2px;
+        border-bottom: 1px solid rgb(22 217 255 / 40%);
+        text-shadow: 0 0 7px rgb(22 217 255 / 65%);
+      }
+
+      .video-list-panel__hint {
+        color: #70a9bc;
+      }
+
+      .video-list {
+        padding-right: 3px;
+      }
+
+      .video-list::-webkit-scrollbar {
+        width: 4px;
+      }
+
+      .video-list::-webkit-scrollbar-thumb {
+        background: rgb(22 217 255 / 55%);
+        border-radius: 0;
+      }
+
+      .video-list__item + .video-list__item {
+        margin-top: 6px;
+      }
+
+      .video-list__button {
+        position: relative;
+        padding: 8px 9px 8px 12px;
+        color: #9ac9d8;
+        background: linear-gradient(90deg, rgb(4 45 70 / 88%), rgb(2 29 49 / 92%));
+        border: 1px solid rgb(15 111 156 / 62%);
+        border-radius: 0;
+        clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+      }
+
+      .video-list__button::before {
+        position: absolute;
+        top: 8px;
+        bottom: 8px;
+        left: 3px;
+        width: 2px;
+        content: "";
+        background: #1c749a;
+        box-shadow: 0 0 5px rgb(22 217 255 / 30%);
+      }
+
+      .video-list__button:hover {
+        background: linear-gradient(90deg, rgb(5 75 108 / 94%), rgb(3 40 65 / 96%));
+        border-color: rgb(70 216 247 / 75%);
+      }
+
+      .video-list__button.is-playing {
+        background: linear-gradient(90deg, rgb(5 76 106 / 95%), rgb(3 44 68 / 94%));
+        border-color: var(--video-cyan);
+        box-shadow: 0 0 9px rgb(22 217 255 / 20%) inset;
+      }
+
+      .video-list__button.is-playing::before {
+        background: #38f5d2;
+        box-shadow: 0 0 7px #38f5d2;
+      }
+
+      .video-list__name {
+        color: #e6faff;
+      }
+
+      .video-list__code,
+      .video-list__status {
+        color: #6ea6ba;
+      }
+
+      .video-list__button.is-playing .video-list__status {
+        color: #3cf0d0;
+        text-shadow: 0 0 5px rgb(60 240 208 / 45%);
+      }
+    </style>
+    <script src="static/winbox.bundle.js" defer=""></script>
+    <script>
+      /****** 兰州大屏通过设置zoom实现分辨率自适应，弹窗及echarts需要根据当前屏幕分辨率单独设置 *****/
+      $(function () {
+        if (window.isAutoResolution) {
+          changeDivHeight();
+
+          window.onresize = () => {
+            changeDivHeight();
+          };
+        } else {
+          window._scale = 1;
+        }
+      });
+
+      function changeDivHeight() {
+        var w = window.innerWidth;
+        var h = window.innerHeight;
+        var origeScale = w / h;
+        var bgScale = 6720 / 2970;
+
+        console.log(
+          "-------=======---------clientWidth",
+          document.body.clientWidth
+        );
+        console.log(
+          "-------=======---------clientHeight",
+          document.body.clientHeight
+        );
+        console.log(
+          "-------=======---------devicePixelRatio",
+          window.devicePixelRatio
+        );
+        console.log("-------=======---------w", w);
+        console.log("-------=======---------h", h);
+        console.log("-------=======---------origeScale", origeScale);
+        console.log("-------=======---------bgScale", bgScale);
+
+        var _l = -(6720 - w) / 2;
+        var _t = -(2970 - h) / 2;
+
+        let _scale = 1;
+        // if (origeScale > bgScale) {
+        _scale = h / 2970;
+        // console.log('-------=======---------h / 2970', _scale);
+        // } else {
+        //   _scale = w / 6720;
+        // console.log('-------=======---------w / 6720', _scale);
+        // }
+        // $(".container").css({
+        //   'top': _t,
+        //   'left': _l,
+        //   'transform': 'scale(' + _scale + ')'
+        // });
+        // console.log('-------=======---------', _scale);
+        window._scale = _scale;
+        // document.body.style.zoom = `${(_scale * 100).toFixed(2)}%`
+        document.body.style.zoom = _scale;
+      }
+    </script>
+    <link rel="stylesheet" href="/HiatmpView/commoncockpit/umi.620a8f50.css" />
+    <script>
+      window.routerBase = "/";
+    </script>
+    <script>
+      window.publicPath =
+        window.resourceBaseUrl || "/HiatmpView/commoncockpit/";
+    </script>
+    <script>
+      //! umi version: 3.5.23
+    </script>
+  </head>
+
+  <body>
+    <div id="root_commoncockpit"></div>
+
+    <!--
+      视频播放窗口：
+      1. 保留 title="视频播放"，可继续用 div[title="视频播放"] 查找该元素；
+      2. 工具栏可切换单画面、双画面和四画面；
+      3. 四个画面槽位分别使用独立 iframe，最多同时播放四路视频；
+      4. 右侧列表用于把任意视频切换到当前选中的画面槽位。
+    -->
+    <div
+      id="video_show_container"
+      class="video-player"
+      title="视频播放"
+    >
+      <div class="video-player__toolbar">
+        <h2 class="video-player__title">视频播放</h2>
+
+        <div class="video-player__layout-buttons" aria-label="分屏方式">
+          <button
+            id="video_split_1"
+            class="video-player__layout-button"
+            type="button"
+            data-split="1"
+            aria-pressed="false"
+          >
+            单画面
+          </button>
+          <button
+            id="video_split_2"
+            class="video-player__layout-button"
+            type="button"
+            data-split="2"
+            aria-pressed="false"
+          >
+            双画面
+          </button>
+          <button
+            id="video_split_4"
+            class="video-player__layout-button is-active"
+            type="button"
+            data-split="4"
+            aria-pressed="true"
+          >
+            四画面
+          </button>
+        </div>
+
+        <!-- 放大整个播放器窗口，与每个视频画面的“画面放大”相互独立。 -->
+        <button
+          id="video_window_maximize"
+          class="video-player__window-button"
+          type="button"
+          aria-pressed="false"
+          title="放大整个视频播放器窗口"
+        >
+          窗口放大
+        </button>
+
+        <button
+          id="video_show_close"
+          class="video-player__close"
+          type="button"
+          aria-label="关闭视频播放"
+          title="关闭视频"
+        >
+          &times;
+        </button>
+      </div>
+
+      <div class="video-player__body">
+        <div class="video-player__stage">
+          <div id="video_grid" class="video-grid" data-split="4">
+            <!-- 画面 1 保留原来的 video_show ID，兼容可能存在的旧代码。 -->
+            <div class="video-slot is-active" data-slot-index="0">
+              <button class="video-slot__select" type="button">
+                画面 1 · 未选择视频
+              </button>
+              <div class="video-slot__actions">
+                <button
+                  class="video-slot__action video-slot__maximize"
+                  type="button"
+                  title="让当前视频占满播放器，便于使用云台"
+                >
+                  画面放大
+                </button>
+              </div>
+              <iframe
+                id="video_show"
+                class="video-player__iframe"
+                title="视频播放 - 画面 1"
+                draggable="false"
+                allow="camera *; microphone *; fullscreen *"
+                allowfullscreen
+                webkitallowfullscreen
+                hidden
+              ></iframe>
+              <div class="video-slot__empty">请从右侧列表选择视频</div>
+            </div>
+
+            <div class="video-slot" data-slot-index="1">
+              <button class="video-slot__select" type="button">
+                画面 2 · 未选择视频
+              </button>
+              <div class="video-slot__actions">
+                <button
+                  class="video-slot__action video-slot__maximize"
+                  type="button"
+                  title="让当前视频占满播放器，便于使用云台"
+                >
+                  画面放大
+                </button>
+              </div>
+              <iframe
+                id="video_show_2"
+                class="video-player__iframe"
+                title="视频播放 - 画面 2"
+                draggable="false"
+                allow="camera *; microphone *; fullscreen *"
+                allowfullscreen
+                webkitallowfullscreen
+                hidden
+              ></iframe>
+              <div class="video-slot__empty">请从右侧列表选择视频</div>
+            </div>
+
+            <div class="video-slot" data-slot-index="2">
+              <button class="video-slot__select" type="button">
+                画面 3 · 未选择视频
+              </button>
+              <div class="video-slot__actions">
+                <button
+                  class="video-slot__action video-slot__maximize"
+                  type="button"
+                  title="让当前视频占满播放器，便于使用云台"
+                >
+                  画面放大
+                </button>
+              </div>
+              <iframe
+                id="video_show_3"
+                class="video-player__iframe"
+                title="视频播放 - 画面 3"
+                draggable="false"
+                allow="camera *; microphone *; fullscreen *"
+                allowfullscreen
+                webkitallowfullscreen
+                hidden
+              ></iframe>
+              <div class="video-slot__empty">请从右侧列表选择视频</div>
+            </div>
+
+            <div class="video-slot" data-slot-index="3">
+              <button class="video-slot__select" type="button">
+                画面 4 · 未选择视频
+              </button>
+              <div class="video-slot__actions">
+                <button
+                  class="video-slot__action video-slot__maximize"
+                  type="button"
+                  title="让当前视频占满播放器，便于使用云台"
+                >
+                  画面放大
+                </button>
+              </div>
+              <iframe
+                id="video_show_4"
+                class="video-player__iframe"
+                title="视频播放 - 画面 4"
+                draggable="false"
+                allow="camera *; microphone *; fullscreen *"
+                allowfullscreen
+                webkitallowfullscreen
+                hidden
+              ></iframe>
+              <div class="video-slot__empty">请从右侧列表选择视频</div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="video-list-panel" aria-label="视频列表">
+          <h3 class="video-list-panel__title">视频列表</h3>
+          <p id="video_list_hint" class="video-list-panel__hint">
+            先选择一个画面，再点击视频进行切换
+          </p>
+          <ul id="video_list" class="video-list"></ul>
+        </aside>
+      </div>
+    </div>
+
+    <iframe
+      id="dhuman_iframe"
+      src="http://10.73.191.167:7860/HiatmpView/brain/app-base/#/any-chat-assistant?city=wuhan&sceneId=marathon_control&sourceType=luban&sessionId=ab3e1828e2191251f9d83224d66bd545&width=1707&height=1480&assistantName=警小安&title=警小安"
+      draggable="false"
+      class=""
+      allow="camera *; microphone *"
+      style="right: 540px; bottom: 0; width: 180px; height: 600px; cursor: auto; color-scheme: light; border: none; position: absolute; z-index: 999"
+    ></iframe>
+
+    <script>
+      //! umi version: 3.5.23
+
+      /* -------------------- 页面元素与播放器状态 -------------------- */
+
+      // 数字人 iframe，保留原有的展开、收起控制功能。
+      const iframeElement = document.getElementById("dhuman_iframe");
+
+      // 视频播放器相关元素。
+      const videoContainer = document.getElementById("video_show_container");
+      const videoToolbar = videoContainer.querySelector(
+        ".video-player__toolbar"
+      );
+      const videoCloseButton = document.getElementById("video_show_close");
+      const videoWindowMaximizeButton = document.getElementById(
+        "video_window_maximize"
+      );
+      const videoGrid = document.getElementById("video_grid");
+      const videoList = document.getElementById("video_list");
+      const videoListHint = document.getElementById("video_list_hint");
+      const videoSlots = Array.from(document.querySelectorAll(".video-slot"));
+      const videoIframeElements = Array.from(
+        document.querySelectorAll(".video-player__iframe")
+      );
+      const splitButtons = Array.from(
+        document.querySelectorAll(".video-player__layout-button")
+      );
+
+      // 视频播放页面的基础地址。每个画面只传入一个设备 ID。
+      const VIDEO_PAGE_URL =
+        "http://10.73.191.167:7860/HiatmpView/video/index.html";
+
+      // availableVideos 保存本次消息传入的全部可选视频。
+      // 数据格式：[{ id: "设备ID", name: "设备名称" }, ...]
+      let availableVideos = [];
+
+      // 四个画面槽位当前对应的视频 ID；空字符串表示该槽位没有视频。
+      let slotVideoIds = ["", "", "", ""];
+
+      // 当前分屏模式允许 1、2 或 4。
+      let currentSplitMode = 4;
+
+      // 当前选中的画面槽位，下标 0～3 分别对应画面 1～4。
+      let activeSlotIndex = 0;
+
+      // 当前在播放器内“满屏”的槽位；null 表示正常分屏布局。
+      let maximizedSlotIndex = null;
+
+      // 保存窗口放大前的位置和尺寸；null 表示播放器窗口处于普通状态。
+      let savedVideoWindowGeometry = null;
+
+      /* -------------------- 视频数据处理 -------------------- */
+
+      /**
+       * 从设备对象中查找设备名称。
+       * 不同接口对设备名称的字段定义可能不同，因此这里按三层策略查找：
+       * 1. 优先读取常见的标准字段，例如 deviceName、cameraName；
+       * 2. 再查找名称类似 xxxName、xxxTitle、xxxLabel 的字段；
+       * 3. 最后递归检查 deviceInfo、cameraInfo 等嵌套对象。
+       */
+      function getDeviceDisplayName(device) {
+        const commonNameKeys = [
+          "deviceName",
+          "device_name",
+          "deviceNm",
+          "devName",
+          "deviceTitle",
+          "deviceLabel",
+          "cameraName",
+          "camera_name",
+          "channelName",
+          "resourceName",
+          "resName",
+          "monitorName",
+          "pointName",
+          "placeName",
+          "locationName",
+          "thirdSysName",
+          "thirdsysname",
+          "gbName",
+          "displayName",
+          "label",
+          "name",
+          "title",
+          "deviceDesc",
+          "description",
+        ];
+        const nameKeyPattern =
+          /^(?:device|dev|camera|channel|resource|point|place|third.?sys|gb).*(?:name|title|label|desc)$/i;
+        const visitedObjects = new Set();
+
+        function findName(target, depth) {
+          if (
+            !target ||
+            typeof target !== "object" ||
+            visitedObjects.has(target) ||
+            depth > 2
+          ) {
+            return "";
+          }
+
+          visitedObjects.add(target);
+
+          // 先按照明确的字段优先级查找，防止误用设备类型名称。
+          for (const key of commonNameKeys) {
+            const value = target[key];
+
+            if (typeof value === "string" && value.trim()) {
+              return value.trim();
+            }
+          }
+
+          // 兼容未知但命名规则合理的设备名称字段。
+          for (const [key, value] of Object.entries(target)) {
+            if (
+              nameKeyPattern.test(key) &&
+              !/(?:type|status|category|class).*name/i.test(key) &&
+              typeof value === "string" &&
+              value.trim()
+            ) {
+              return value.trim();
+            }
+          }
+
+          // 最多向下检查两层，避免异常数据出现循环引用或递归过深。
+          for (const value of Object.values(target)) {
+            if (value && typeof value === "object" && !Array.isArray(value)) {
+              const nestedName = findName(value, depth + 1);
+
+              if (nestedName) {
+                return nestedName;
+              }
+            }
+          }
+
+          return "";
+        }
+
+        return findName(device, 0);
+      }
+
+      /**
+       * 把后端传入的设备对象转换为播放器内部的统一格式。
+       * 仍然优先使用原代码中的 thirdSysCode，同时兼容 deviceId 和 id。
+       * 设备名称由 getDeviceDisplayName 统一解析；如果消息确实没有名称，
+       * 则回退为“设备 + 设备 ID”，保证标题不再显示含义不清楚的“视频 N”。
+       */
+      function normalizeVideoDevices(deviceList) {
+        const usedIds = new Set();
+
+        return deviceList
+          .map(function (device, index) {
+            const id = String(
+              device.thirdSysCode || device.deviceId || device.id || ""
+            );
+            const name =
+              getDeviceDisplayName(device) ||
+              (id ? "设备 " + id : "未命名设备 " + (index + 1));
+
+            return { id: id, name: name };
+          })
+          .filter(function (video) {
+            // 过滤无 ID 的设备，并按 ID 去重，避免列表出现重复项。
+            if (!video.id || usedIds.has(video.id)) {
+              return false;
+            }
+
+            usedIds.add(video.id);
+            return true;
+          });
+      }
+
+      /** 根据设备 ID 获取视频信息。 */
+      function getVideoById(videoId) {
+        return availableVideos.find(function (video) {
+          return video.id === videoId;
+        });
+      }
+
+      /**
+       * 生成单路视频的 iframe 地址。
+       * encodeURIComponent 可以避免设备 ID 中的特殊字符破坏查询参数。
+       */
+      function buildVideoUrl(videoId) {
+        return (
+          VIDEO_PAGE_URL +
+          "?deviceIds=" +
+          encodeURIComponent(videoId) +
+          "&deviceType=IPC"
+        );
+      }
+
+      /**
+       * 停止指定 iframe 的视频流。
+       * removeAttribute("src") 会卸载 iframe 页面，减少隐藏视频继续占用网络和解码资源。
+       */
+      function unloadVideoIframe(iframe) {
+        iframe.removeAttribute("src");
+        iframe.removeAttribute("data-video-id");
+        iframe.hidden = true;
+      }
+
+      /* -------------------- 界面渲染 -------------------- */
+
+      /**
+       * 渲染四个画面槽位。
+       * 单画面显示 1 个槽位，双画面显示 2 个槽位，四画面显示 4 个槽位。
+       */
+      function renderVideoSlots() {
+        const visibleSlotCount = currentSplitMode;
+        videoGrid.dataset.split = String(currentSplitMode);
+        videoGrid.classList.toggle(
+          "is-slot-maximized",
+          maximizedSlotIndex !== null
+        );
+        videoContainer.classList.toggle(
+          "is-slot-maximized",
+          maximizedSlotIndex !== null
+        );
+
+        videoSlots.forEach(function (slot, index) {
+          const iframe = videoIframeElements[index];
+          const selectButton = slot.querySelector(".video-slot__select");
+          const actions = slot.querySelector(".video-slot__actions");
+          const maximizeButton = slot.querySelector(".video-slot__maximize");
+          const emptyMessage = slot.querySelector(".video-slot__empty");
+          const isVisible = index < visibleSlotCount;
+          const video = getVideoById(slotVideoIds[index]);
+
+          slot.hidden = !isVisible;
+          slot.classList.toggle(
+            "is-active",
+            isVisible && index === activeSlotIndex
+          );
+          slot.classList.toggle("is-maximized", index === maximizedSlotIndex);
+          actions.hidden = !isVisible || !video;
+          maximizeButton.textContent =
+            index === maximizedSlotIndex ? "画面还原" : "画面放大";
+          maximizeButton.title =
+            index === maximizedSlotIndex
+              ? "恢复分屏布局"
+              : "让当前视频占满播放器，便于使用云台";
+
+          // 有视频时，画面标题直接展示设备名称，并同步提供悬停提示。
+          selectButton.textContent = video
+            ? video.name
+            : "画面 " + (index + 1) + " · 未选择设备";
+          selectButton.title = video
+            ? "设备名称：" + video.name + "（点击选择画面）"
+            : "画面 " + (index + 1) + " 尚未选择设备";
+
+          // 不可见或没有视频时卸载 iframe，确保最多只有四路视频同时播放。
+          if (!isVisible || !video) {
+            unloadVideoIframe(iframe);
+            emptyMessage.hidden = !isVisible || Boolean(video);
+            return;
+          }
+
+          emptyMessage.hidden = true;
+          iframe.hidden = false;
+          iframe.title = video.name;
+          iframe.setAttribute("aria-label", "正在播放设备：" + video.name);
+
+          // 只有设备发生变化时才更新 src，避免普通界面刷新导致视频重复加载。
+          if (iframe.dataset.videoId !== video.id) {
+            iframe.src = buildVideoUrl(video.id);
+            iframe.dataset.videoId = video.id;
+          }
+        });
+      }
+
+      /**
+       * 渲染右侧视频列表。
+       * 在当前可见画面中的视频标记为“正在播放”，其他视频标记为“未播放”。
+       */
+      function renderVideoList() {
+        const visibleSlotCount = currentSplitMode;
+        const playingVideoIds = slotVideoIds.slice(0, visibleSlotCount);
+
+        videoList.replaceChildren();
+
+        availableVideos.forEach(function (video) {
+          const playingSlotIndex = playingVideoIds.indexOf(video.id);
+          const listItem = document.createElement("li");
+          const button = document.createElement("button");
+          const name = document.createElement("span");
+          const code = document.createElement("span");
+          const status = document.createElement("span");
+
+          listItem.className = "video-list__item";
+          button.className = "video-list__button";
+          button.type = "button";
+          button.dataset.videoId = video.id;
+          button.title =
+            "设备名称：" + video.name + "。点击切换到当前选中的画面";
+          button.setAttribute("aria-label", "选择设备：" + video.name);
+          button.classList.toggle("is-playing", playingSlotIndex !== -1);
+
+          // 给每个动态创建的按钮直接绑定事件，避免旧浏览器或嵌套元素
+          // 对事件委托支持不一致，确保点击名称、ID、状态区域都可以切换。
+          button.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            switchVideoToActiveSlot(video.id);
+          });
+
+          name.className = "video-list__name";
+          name.textContent = video.name;
+
+          code.className = "video-list__code";
+          code.textContent = "设备 ID：" + video.id;
+
+          status.className = "video-list__status";
+          status.textContent =
+            playingSlotIndex === -1
+              ? "未播放"
+              : "正在播放 · 画面 " + (playingSlotIndex + 1);
+
+          button.append(name, code, status);
+          listItem.append(button);
+          videoList.append(listItem);
+        });
+
+        if (availableVideos.length === 0) {
+          const emptyItem = document.createElement("li");
+          emptyItem.className = "video-list-panel__hint";
+          emptyItem.textContent = "暂无可播放的视频";
+          videoList.append(emptyItem);
+        }
+      }
+
+      /** 更新单画面/双画面/四画面按钮和右侧操作提示。 */
+      function renderVideoControls() {
+        splitButtons.forEach(function (button) {
+          const isActive = Number(button.dataset.split) === currentSplitMode;
+          button.classList.toggle("is-active", isActive);
+          button.setAttribute("aria-pressed", String(isActive));
+        });
+
+        videoListHint.textContent =
+          "当前选择：画面 " +
+          (activeSlotIndex + 1) +
+          "。点击列表视频即可切换。";
+      }
+
+      /** 一次性刷新播放器的画面、列表和控制按钮。 */
+      function renderVideoPlayer() {
+        renderVideoSlots();
+        renderVideoList();
+        renderVideoControls();
+      }
+
+      /* -------------------- 用户交互 -------------------- */
+
+      /**
+       * 选择一个画面槽位。
+       * 用户随后点击右侧视频，视频会被切换到这个槽位中。
+       */
+      function selectVideoSlot(slotIndex) {
+        if (slotIndex >= currentSplitMode) {
+          return;
+        }
+
+        activeSlotIndex = slotIndex;
+        renderVideoPlayer();
+      }
+
+      /**
+       * 把列表中的视频放入当前选中的画面。
+       * 如果该视频已在其他画面播放，则交换两个画面，避免同一路视频重复播放。
+       */
+      function switchVideoToActiveSlot(videoId) {
+        if (!getVideoById(videoId)) {
+          return;
+        }
+
+        const existingSlotIndex = slotVideoIds.indexOf(videoId);
+
+        // 先卸载会发生变化的 iframe，确保即使视频页面内部有缓存，
+        // 切换后也会根据新的设备 ID 完整重新初始化。
+        unloadVideoIframe(videoIframeElements[activeSlotIndex]);
+
+        if (
+          existingSlotIndex !== -1 &&
+          existingSlotIndex !== activeSlotIndex
+        ) {
+          unloadVideoIframe(videoIframeElements[existingSlotIndex]);
+        }
+
+        if (
+          existingSlotIndex !== -1 &&
+          existingSlotIndex !== activeSlotIndex
+        ) {
+          const oldActiveVideoId = slotVideoIds[activeSlotIndex];
+          slotVideoIds[activeSlotIndex] = videoId;
+          slotVideoIds[existingSlotIndex] = oldActiveVideoId;
+        } else {
+          slotVideoIds[activeSlotIndex] = videoId;
+        }
+
+        renderVideoPlayer();
+      }
+
+      /**
+       * 切换单画面、双画面或四画面。
+       * 如果切换后当前槽位会被隐藏，则把当前视频交换到最后一个可见槽位，
+       * 保证用户当前选中的设备不会因为切换布局而消失。
+       */
+      function changeSplitMode(splitMode) {
+        if (splitMode !== 1 && splitMode !== 2 && splitMode !== 4) {
+          return;
+        }
+
+        if (activeSlotIndex >= splitMode) {
+          const targetSlotIndex = splitMode - 1;
+          const targetVideoId = slotVideoIds[targetSlotIndex];
+          slotVideoIds[targetSlotIndex] = slotVideoIds[activeSlotIndex];
+          slotVideoIds[activeSlotIndex] = targetVideoId;
+          activeSlotIndex = targetSlotIndex;
+        }
+
+        // 用户主动切换布局时退出单画面满屏状态。
+        maximizedSlotIndex = null;
+        currentSplitMode = splitMode;
+        renderVideoPlayer();
+      }
+
+      /**
+       * 关闭视频播放器：停止全部 iframe，并隐藏整个播放器窗口。
+       * 此函数同时供关闭按钮和 MEDIA_CLOSE 消息复用。
+       */
+      function closeVideoPlayer() {
+        videoIframeElements.forEach(unloadVideoIframe);
+        maximizedSlotIndex = null;
+        videoGrid.classList.remove("is-slot-maximized");
+        videoContainer.classList.remove("is-slot-maximized");
+        restoreVideoWindowSize();
+        videoContainer.style.display = "none";
+      }
+
+      /**
+       * 根据设备数量选择首次打开时的分屏：
+       * 1 路使用单画面，2 路使用双画面，3 路仍使用双画面并从列表切换，
+       * 4 路及以上使用四画面，超出的设备保留在右侧列表。
+       */
+      function getInitialSplitMode(videoCount) {
+        if (videoCount <= 1) {
+          return 1;
+        }
+
+        if (videoCount <= 3) {
+          return 2;
+        }
+
+        return 4;
+      }
+
+      /**
+       * 使用 MEDIA_LIVE_START 中的设备列表打开播放器。
+       * 初始分屏由设备数量决定；超过当前可见槽位的设备留在右侧列表切换。
+       */
+      function openVideoPlayer(deviceList) {
+        availableVideos = normalizeVideoDevices(deviceList);
+
+        if (availableVideos.length === 0) {
+          return;
+        }
+
+        currentSplitMode = getInitialSplitMode(availableVideos.length);
+        slotVideoIds = ["", "", "", ""];
+        availableVideos.slice(0, currentSplitMode).forEach(function (video, index) {
+          slotVideoIds[index] = video.id;
+        });
+
+        activeSlotIndex = 0;
+        maximizedSlotIndex = null;
+        renderVideoPlayer();
+        videoContainer.style.display = "block";
+      }
+
+      // 点击关闭按钮时关闭全部视频。
+      videoCloseButton.addEventListener("click", closeVideoPlayer);
+
+      // 放大或还原整个播放器窗口，不影响当前单/双/四画面布局。
+      videoWindowMaximizeButton.addEventListener(
+        "click",
+        toggleVideoWindowSize
+      );
+
+      // 点击工具栏中的“单画面/双画面/四画面”按钮切换布局。
+      splitButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          changeSplitMode(Number(button.dataset.split));
+        });
+      });
+
+      // 点击画面顶部标题栏，选择接下来要被替换的画面槽位。
+      videoSlots.forEach(function (slot, index) {
+        slot
+          .querySelector(".video-slot__select")
+          .addEventListener("click", function () {
+            selectVideoSlot(index);
+          });
+
+        // “画面放大”只放大当前槽位到播放器内部，适合单画面和云台操作。
+        slot
+          .querySelector(".video-slot__maximize")
+          .addEventListener("click", function () {
+            toggleMaximizeVideoSlot(index);
+          });
+
+      });
+
+      /**
+       * 放大或还原指定视频槽位。
+       * forceMaximize=true 用于云台打开时强制放大，不会因为重复消息而意外还原。
+       */
+      function toggleMaximizeVideoSlot(slotIndex, forceMaximize) {
+        if (!slotVideoIds[slotIndex] || slotIndex >= currentSplitMode) {
+          return;
+        }
+
+        const shouldRestore =
+          maximizedSlotIndex === slotIndex && !forceMaximize;
+        maximizedSlotIndex = shouldRestore ? null : slotIndex;
+        activeSlotIndex = slotIndex;
+        renderVideoPlayer();
+      }
+
+      /**
+       * 根据当前视口和 body.zoom 设置播放器窗口的放大尺寸。
+       * 页面使用 zoom 缩放时，CSS 尺寸需要除以缩放比例才能铺满可视区域。
+       */
+      function applyMaximizedVideoWindowGeometry() {
+        const pageScale = Number(window._scale) || 1;
+
+        videoContainer.style.top = "0px";
+        videoContainer.style.left = "0px";
+        videoContainer.style.width = window.innerWidth / pageScale + "px";
+        videoContainer.style.height = window.innerHeight / pageScale + "px";
+        videoContainer.style.zIndex = "10000";
+      }
+
+      /** 放大整个播放器窗口，或恢复放大前的拖动位置和原始尺寸。 */
+      function toggleVideoWindowSize() {
+        if (savedVideoWindowGeometry) {
+          restoreVideoWindowSize();
+          return;
+        }
+
+        const computedStyle = window.getComputedStyle(videoContainer);
+        savedVideoWindowGeometry = {
+          top: computedStyle.top,
+          left: computedStyle.left,
+          width: computedStyle.width,
+          height: computedStyle.height,
+          zIndex: computedStyle.zIndex,
+        };
+
+        applyMaximizedVideoWindowGeometry();
+        videoContainer.classList.add("is-window-maximized");
+        videoWindowMaximizeButton.classList.add("is-active");
+        videoWindowMaximizeButton.textContent = "窗口还原";
+        videoWindowMaximizeButton.title = "恢复播放器原始位置和尺寸";
+        videoWindowMaximizeButton.setAttribute("aria-pressed", "true");
+      }
+
+      /** 恢复播放器窗口放大前的位置、尺寸和层级。 */
+      function restoreVideoWindowSize() {
+        if (!savedVideoWindowGeometry) {
+          return;
+        }
+
+        videoContainer.style.top = savedVideoWindowGeometry.top;
+        videoContainer.style.left = savedVideoWindowGeometry.left;
+        videoContainer.style.width = savedVideoWindowGeometry.width;
+        videoContainer.style.height = savedVideoWindowGeometry.height;
+        videoContainer.style.zIndex = savedVideoWindowGeometry.zIndex;
+        savedVideoWindowGeometry = null;
+
+        videoContainer.classList.remove("is-window-maximized");
+        videoWindowMaximizeButton.classList.remove("is-active");
+        videoWindowMaximizeButton.textContent = "窗口放大";
+        videoWindowMaximizeButton.title = "放大整个视频播放器窗口";
+        videoWindowMaximizeButton.setAttribute("aria-pressed", "false");
+      }
+
+      // 浏览器尺寸变化时，已放大的播放器继续保持铺满可视区域。
+      window.addEventListener("resize", function () {
+        if (savedVideoWindowGeometry) {
+          applyMaximizedVideoWindowGeometry();
+        }
+      });
+
+      /**
+       * 尝试监听同源视频页面里的“云台”按钮。
+       * 如果视频 iframe 与父页面同源，点击云台会自动让该画面满屏；
+       * 跨域时浏览器禁止读取 iframe 内容，此时使用画面标题栏的“满屏”按钮即可。
+       */
+      function bindSameOriginPtzAutoMaximize(iframe, slotIndex) {
+        try {
+          const iframeDocument = iframe.contentDocument;
+
+          if (!iframeDocument || iframeDocument.__ptzAutoMaximizeBound) {
+            return;
+          }
+
+          iframeDocument.__ptzAutoMaximizeBound = true;
+          iframeDocument.addEventListener(
+            "click",
+            function (event) {
+              const control = event.target.closest?.(
+                "button, [role='button'], [title]"
+              );
+              const controlText =
+                (control?.getAttribute("title") || "") +
+                " " +
+                (control?.textContent || "");
+
+              if (/云台|PTZ/i.test(controlText)) {
+                toggleMaximizeVideoSlot(slotIndex, true);
+              }
+            },
+            true
+          );
+        } catch (error) {
+          // 跨域 iframe 无法读取属于正常浏览器安全限制，保留手动满屏方案。
+          console.debug("视频页面跨域，云台使用画面满屏按钮优化显示");
+        }
+      }
+
+      // 每次视频 iframe 加载完成后，尝试绑定同源云台自动满屏。
+      videoIframeElements.forEach(function (iframe, index) {
+        iframe.addEventListener("load", function () {
+          bindSameOriginPtzAutoMaximize(iframe, index);
+        });
+      });
+
+      /* -------------------- 播放器窗口拖动 -------------------- */
+
+      // dragState 仅在拖动过程中保存鼠标起点和播放器初始位置。
+      let dragState = null;
+
+      /**
+       * 按下播放器顶部标题栏时开始拖动。
+       * 如果按下的是分屏按钮或关闭按钮，则保留按钮原有点击功能，不触发拖动。
+       */
+      function startDraggingVideoPlayer(event) {
+        if (
+          savedVideoWindowGeometry ||
+          event.button !== 0 ||
+          event.target.closest("button")
+        ) {
+          return;
+        }
+
+        const computedStyle = window.getComputedStyle(videoContainer);
+        const pageScale = Number(window._scale) || 1;
+
+        dragState = {
+          pointerId: event.pointerId,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          startLeft: parseFloat(computedStyle.left) || 0,
+          startTop: parseFloat(computedStyle.top) || 0,
+          // 页面可能通过 body.zoom 缩放，拖动距离需要除以缩放比例。
+          pageScale: pageScale,
+        };
+
+        videoContainer.classList.add("is-dragging");
+        videoToolbar.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      }
+
+      /** 根据指针移动距离，实时修改播放器的 left 和 top。 */
+      function dragVideoPlayer(event) {
+        if (!dragState || event.pointerId !== dragState.pointerId) {
+          return;
+        }
+
+        const movedX =
+          (event.clientX - dragState.startClientX) / dragState.pageScale;
+        const movedY =
+          (event.clientY - dragState.startClientY) / dragState.pageScale;
+
+        videoContainer.style.left = dragState.startLeft + movedX + "px";
+        videoContainer.style.top = dragState.startTop + movedY + "px";
+        event.preventDefault();
+      }
+
+      /** 松开指针或拖动被取消时，结束拖动并清理临时状态。 */
+      function stopDraggingVideoPlayer(event) {
+        if (!dragState || event.pointerId !== dragState.pointerId) {
+          return;
+        }
+
+        if (videoToolbar.hasPointerCapture?.(event.pointerId)) {
+          videoToolbar.releasePointerCapture(event.pointerId);
+        }
+
+        dragState = null;
+        videoContainer.classList.remove("is-dragging");
+      }
+
+      videoToolbar.addEventListener("pointerdown", startDraggingVideoPlayer);
+      videoToolbar.addEventListener("pointermove", dragVideoPlayer);
+      videoToolbar.addEventListener("pointerup", stopDraggingVideoPlayer);
+      videoToolbar.addEventListener("pointercancel", stopDraggingVideoPlayer);
+
+      /* -------------------- 与数字人 iframe 的消息通信 -------------------- */
+
+      /** 根据 postMessage 的来源窗口，判断消息来自哪个视频画面。 */
+      function getVideoSlotIndexFromMessageSource(messageSource) {
+        return videoIframeElements.findIndex(function (iframe) {
+          return iframe.contentWindow === messageSource;
+        });
+      }
+
+      // 直接注册一次全局消息监听，不依赖数字人 iframe 的 load 时机，
+      // 也避免数字人 iframe 重新加载后重复注册相同监听器。
+      window.addEventListener("message", function (event) {
+        const message = event.data;
+        console.log(message);
+
+        // 某些页面也会发送 message；没有 type 时不继续处理。
+        if (!message || !message.type) {
+          return;
+        }
+
+        // 如果视频子页面通过 postMessage 通知父页面打开云台，自动满屏当前画面。
+        // 同时兼容几种常见的 PTZ/云台消息命名方式。
+        const sourceSlotIndex = getVideoSlotIndexFromMessageSource(
+          event.source
+        );
+        const normalizedMessageType = String(message.type).toUpperCase();
+
+        if (
+          sourceSlotIndex !== -1 &&
+          /(?:PTZ|YUNTAI|CLOUD_CONTROL).*(?:OPEN|SHOW|START)|(?:OPEN|SHOW|START).*(?:PTZ|YUNTAI|CLOUD_CONTROL)/.test(
+            normalizedMessageType
+          )
+        ) {
+          toggleMaximizeVideoSlot(sourceSlotIndex, true);
+        }
+
+        if (message.type === "DIGITAL_HUMAN_MODE_CHANGE") {
+          const digitalHumanMode = message.payload?.mode;
+
+          if (digitalHumanMode === "standby") {
+            const element = document.querySelector('div[title="展开面板"]');
+            element?.click();
+            iframeElement.style.width = "180px";
+            iframeElement.style.height = "600px";
+            iframeElement.style.right = "540px";
+            iframeElement.style.bottom = "0px";
+          } else if (digitalHumanMode === "qa_detailed") {
+            const element = document.querySelector('div[title="收起面板"]');
+            element?.click();
+            iframeElement.style.width = "1205px";
+            iframeElement.style.height = "800px";
+            iframeElement.style.right = "40px";
+            iframeElement.style.bottom = "0px";
+          }
+        } else if (message.type === "MEDIA_LIVE_START") {
+          // 打开视频组件，并把设备列表交给单/双/四分屏播放器。
+          const deviceList = message.payload?.deviceList || [];
+
+          if (deviceList.length > 0) {
+            openVideoPlayer(deviceList);
+            console.log("视频设备列表", availableVideos);
+          }
+        } else if (message.type === "MEDIA_CLOSE") {
+          // 外部消息关闭视频，行为与点击右上角关闭按钮相同。
+          closeVideoPlayer();
+        }
+      });
+
+    </script>
+    <script src="/HiatmpView/commoncockpit/umi.de9cbc22.js"></script>
+  </body>
+</html>

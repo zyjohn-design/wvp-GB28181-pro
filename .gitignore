@@ -34,3 +34,10 @@ certificates
 /打包/
 /snap/
 /config/
+
+# 指挥调度部署目录：不提交真实密钥、运行数据和大型离线镜像。
+/deploy/traffic-command/.env
+/deploy/traffic-command/data/
+/deploy/traffic-command/logs/
+/deploy/traffic-command/images/*.tar
+/deploy/traffic-command/images/*.tar.gz

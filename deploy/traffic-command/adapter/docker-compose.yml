@@ -1,0 +1,12 @@
+services:
+  gb28181-h5-adapter:
+    build: .
+    container_name: gb28181-h5-adapter
+    restart: unless-stopped
+    # 推荐部署在 Linux 视频服务器上并使用 host 网络，直接访问 WVP/ZLM 端口。
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      # 映射文件可直接修改，服务会在每次请求时重新读取，无需重启。
+      - ./config/device-map.json:/app/config/device-map.json:ro

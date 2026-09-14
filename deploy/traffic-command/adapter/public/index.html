@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GB28181 H5 视频播放</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!--
+      与原科达页面保持相同入口：
+      /index.html?deviceIds=通道1,通道2&deviceType=IPC
+      index2.html 不需要做任何修改。
+    -->
+    <main id="video-grid" class="video-grid" aria-live="polite"></main>
+
+    <div id="global-status" class="global-status">正在初始化国标视频……</div>
+
+    <!-- 云台面板调用 WVP 的 GB28181 前端控制接口。 -->
+    <section id="ptz-panel" class="ptz-panel" hidden>
+      <header class="ptz-panel__header">
+        <div>
+          <strong>云台控制</strong>
+          <small id="ptz-device-name"></small>
+        </div>
+        <button id="ptz-close" type="button" aria-label="关闭云台">×</button>
+      </header>
+
+      <div id="ptz-directions" class="ptz-directions"></div>
+
+      <div class="ptz-zoom">
+        <button type="button" data-ptz-command="zoomin">拉近 ＋</button>
+        <button type="button" data-ptz-command="zoomout">拉远 －</button>
+      </div>
+
+      <label class="ptz-speed">
+        <span>速度</span>
+        <input id="ptz-speed" type="range" min="1" max="255" value="100" />
+        <output id="ptz-speed-value">100</output>
+      </label>
+      <p>按住开始移动，松开自动停止</p>
+    </section>
+
+    <!-- mpegts.js 从本服务本地加载，部署后不依赖互联网 CDN。 -->
+    <script src="./vendor/mpegts.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

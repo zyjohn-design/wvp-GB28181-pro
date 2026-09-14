@@ -1,0 +1,171 @@
+version: "2.4"
+
+services:
+  polaris-redis:
+    image: redis:7.4-alpine
+    platform: linux/amd64
+    restart: unless-stopped
+    command: redis-server /etc/redis/redis.conf --appendonly yes
+    volumes:
+      - ./config/redis/redis.conf:/etc/redis/redis.conf:ro
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [media-net]
+
+  polaris-mysql:
+    image: mysql:8.4
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wvp
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: wvp_user
+      MYSQL_PASSWORD: ${MYSQL_WVP_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - --innodb-buffer-pool-size=256M
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --default-time-zone=+08:00
+      - --lower-case-table-names=1
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks: [media-net]
+
+  polaris-media:
+    image: zlmediakit/zlmediakit:master
+    platform: linux/amd64
+    restart: unless-stopped
+    command: ["MediaServer", "-c", "/conf/config.ini", "-l", "0"]
+    ports:
+      - "${MEDIA_RTMP_PORT}:${MEDIA_RTMP_PORT}/tcp"
+      - "${MEDIA_RTMP_PORT}:${MEDIA_RTMP_PORT}/udp"
+      - "${MEDIA_RTSP_PORT}:${MEDIA_RTSP_PORT}/tcp"
+      - "${MEDIA_RTSP_PORT}:${MEDIA_RTSP_PORT}/udp"
+      - "${MEDIA_RTP_PORT}:${MEDIA_RTP_PORT}/tcp"
+      - "${MEDIA_RTP_PORT}:${MEDIA_RTP_PORT}/udp"
+      - "127.0.0.1:${ZLM_DEBUG_PORT}:80"
+    volumes:
+      - ./config/zlm/config.ini:/conf/config.ini
+      - ./data/record:/opt/media/bin/www/record
+      - ./logs/zlm:/opt/media/log
+    networks: [media-net]
+
+  polaris-wvp:
+    image: local/gb28181-wvp:fb45787-amd64
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      RUN_ENV: docker
+      Stream_IP: ${SERVER_IP}
+      SDP_IP: ${SERVER_IP}
+      SIP_ShowIP: ${SERVER_IP}
+      SIP_Port: ${SIP_PORT}
+      SIP_Domain: ${SIP_DOMAIN}
+      SIP_Id: ${SIP_ID}
+      SIP_Password: ${SIP_PASSWORD}
+      ZLM_HOOK_HOST: polaris-wvp
+      ZLM_HOST: polaris-media
+      ZLM_SERCERT: su6TiedN2rVAmBbIDX0aa0QTiBJLBdcf
+      # WVP页面返回的媒体地址经WVP Web同源代理，浏览器不需要访问ZLM调试端口。
+      MediaHttp: ${WVP_WEB_PORT}
+      MediaRtmp: ${MEDIA_RTMP_PORT}
+      MediaRtsp: ${MEDIA_RTSP_PORT}
+      MediaRtp: ${MEDIA_RTP_PORT}
+      REDIS_HOST: polaris-redis
+      REDIS_PORT: 6379
+      DATABASE_HOST: polaris-mysql
+      DATABASE_PORT: 3306
+      DATABASE_USER: wvp_user
+      DATABASE_PASSWORD: ${MYSQL_WVP_PASSWORD}
+      RecordSip: "false"
+      RecordPushLive: "false"
+    ports:
+      - "${SIP_PORT}:${SIP_PORT}/udp"
+      - "${SIP_PORT}:${SIP_PORT}/tcp"
+      - "127.0.0.1:${WVP_DEBUG_PORT}:18978"
+    volumes:
+      - ./config/wvp:/opt/ylcx/wvp
+      # 保存WVP自动生成的JWT/JWK等运行密钥，容器重建后仍保持登录令牌体系一致。
+      - ./data/wvp-config:/opt/wvp/config
+      - ./logs/wvp:/opt/wvp/logs
+    depends_on:
+      polaris-redis:
+        condition: service_healthy
+      polaris-mysql:
+        condition: service_healthy
+      polaris-media:
+        condition: service_started
+    networks: [media-net]
+
+  polaris-wvp-web:
+    image: local/gb28181-wvp-web:fb45787-amd64
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      # 默认只对服务器本机开放，避免未鉴权的WVP API暴露到公网。
+      # 远程管理请使用SSH隧道，或把WVP_BIND_IP改成受信任的管理网IP。
+      - "${WVP_BIND_IP}:${WVP_WEB_PORT}:8080"
+    volumes:
+      - ./config/nginx/wvp-web.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on: [polaris-wvp]
+    networks: [media-net]
+
+  polaris-adapter:
+    image: local/gb28181-h5-adapter:1.0.0-amd64
+    platform: linux/amd64
+    restart: unless-stopped
+    working_dir: /workspace
+    command: ["node", "/workspace/server.js"]
+    environment:
+      PORT: 8088
+      WVP_BASE_URL: http://polaris-wvp:18978
+      WVP_API_KEY: ""
+      WVP_AUTH_HEADER: api-key
+      ZLM_BASE_URL: http://polaris-media:80
+      DEFAULT_GB_DEVICE_ID: ${DEFAULT_GB_DEVICE_ID}
+      DEVICE_MAP_FILE: /runtime-config/device-map.json
+      PROXY_MEDIA: "true"
+      MAX_CHANNELS: ${MAX_CHANNELS}
+      PLAY_TIMEOUT_MS: ${PLAY_TIMEOUT_MS}
+      VENDOR_MPEGTS_FILE: /opt/adapter/node_modules/mpegts.js/dist/mpegts.js
+    volumes:
+      # HTML、CSS、JS和Node代码均从宿主机挂载，方便直接更新。
+      - ./adapter:/workspace:ro
+      - ./config/device-map.json:/runtime-config/device-map.json:ro
+    depends_on: [polaris-wvp, polaris-media]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8088/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [media-net]
+
+  h5-gateway:
+    image: nginx:1.27-alpine
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "${H5_PUBLIC_PORT}:7860"
+    volumes:
+      - ./config/nginx/h5-gateway.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      polaris-adapter:
+        condition: service_healthy
+    networks: [media-net]
+
+networks:
+  media-net:
+    driver: bridge

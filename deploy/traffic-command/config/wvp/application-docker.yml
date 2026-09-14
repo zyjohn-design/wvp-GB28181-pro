@@ -103,16 +103,16 @@ media:
   rtsp-ssl-port: 0
   # [可选] 是否自动配置ZLM, 如果希望手动配置ZLM, 可以设为false, 不建议新接触的用户修改
   auto-config: true
-  # [可选] 
+  # [可选]
   secret: ${ZLM_SERCERT}
   # 启用多端口模式, 多端口模式使用端口区分每路流，兼容性更好。 单端口使用流的ssrc区分， 点播超时建议使用多端口测试
   rtp:
     # [可选] 是否启用多端口模式, 开启后会在portRange范围内选择端口用于媒体流传输
     enable: false
-    # [可选] 
-    port-range: 30000,30500 
-    # [可选] 
-    send-port-range: 50502,50506 
+    # [可选]
+    port-range: 30000,30500
+    # [可选]
+    send-port-range: 50502,50506
 
   record-path: /opt/media/bin/www/record/
   record-day: 7
@@ -124,12 +124,14 @@ user-settings:
     record-push-live: ${RecordPushLive:false}
     record-sip: ${RecordSip:false}
     stream-on-demand: true
-    # 必须开启接口鉴权。关闭后不会建立登录用户上下文，会导致修改密码等接口失败。
+    # 必须开启接口鉴权。关闭后虽然接口可以访问，但不会建立登录用户上下文，
+    # 会导致首次登录修改密码、用户信息等接口返回失败。
     interface-authentication: true
     broadcast-for-platform: TCP-PASSIVE
     push-stream-after-ack: true
     send-to-platforms-when-id-lost: true
-    # 指挥调度H5适配器仅使用以下内部接口，按最小权限放行。
+    # H5适配器只调用以下内部接口，因此只做最小范围放行；WVP管理接口仍要求登录令牌。
+    # WVP后台端口默认仅绑定127.0.0.1，不应直接暴露到公网。
     interface-authentication-excludes:
       - /api/device/query/devices
       - /api/device/query/devices/**

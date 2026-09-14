@@ -1,0 +1,244 @@
+:root {
+  color-scheme: dark;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #020617;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  background: #020617;
+}
+
+button {
+  font: inherit;
+}
+
+.video-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  gap: 6px;
+  padding: 6px;
+}
+
+.video-grid[data-count="1"] {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.video-grid[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+}
+
+.video-grid[data-count="3"],
+.video-grid[data-count="4"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.video-card {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid #334155;
+  border-radius: 6px;
+}
+
+.video-card video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.video-card__title {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  padding: 7px 10px;
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  background: linear-gradient(rgb(0 0 0 / 80%), transparent);
+}
+
+.video-card__message {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  padding: 24px;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  background: #020617;
+  place-items: center;
+}
+
+.video-card__message.is-error {
+  color: #fecaca;
+  background: #200b0b;
+}
+
+.video-card__ptz {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  padding: 7px 13px;
+  color: #e0f2fe;
+  cursor: pointer;
+  background: rgb(3 105 161 / 86%);
+  border: 1px solid #38bdf8;
+  border-radius: 18px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+}
+
+.video-card__ptz:hover {
+  background: #0284c7;
+}
+
+.global-status {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  max-width: min(520px, 90vw);
+  padding: 12px 20px;
+  color: #dbeafe;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  background: rgb(15 23 42 / 92%);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  transform: translate(-50%, -50%);
+}
+
+.global-status[hidden] {
+  display: none;
+}
+
+.ptz-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 100;
+  width: min(310px, calc(100vw - 24px));
+  padding: 14px;
+  color: #e2e8f0;
+  background: rgb(15 23 42 / 97%);
+  border: 1px solid #38bdf8;
+  border-radius: 12px;
+  box-shadow: 0 18px 55px rgb(0 0 0 / 65%);
+  transform: translate(-50%, -50%);
+}
+
+.ptz-panel[hidden] {
+  display: none;
+}
+
+.ptz-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ptz-panel__header strong,
+.ptz-panel__header small {
+  display: block;
+}
+
+.ptz-panel__header small {
+  max-width: 240px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ptz-panel__header button {
+  padding: 0 4px;
+  color: #cbd5e1;
+  font-size: 24px;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.ptz-directions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.ptz-directions button,
+.ptz-zoom button {
+  height: 42px;
+  color: #e2e8f0;
+  font-size: 18px;
+  cursor: pointer;
+  touch-action: none;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 7px;
+}
+
+.ptz-directions button.is-pressing,
+.ptz-zoom button.is-pressing {
+  background: #0369a1;
+  border-color: #7dd3fc;
+}
+
+.ptz-zoom {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.ptz-zoom button {
+  flex: 1;
+  font-size: 13px;
+}
+
+.ptz-speed {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.ptz-speed input {
+  flex: 1;
+  accent-color: #0ea5e9;
+}
+
+.ptz-panel > p {
+  margin: 9px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  text-align: center;
+}

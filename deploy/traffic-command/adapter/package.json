@@ -1,0 +1,17 @@
+{
+  "name": "gb28181-h5-adapter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "兼容现有 deviceIds 接口的 GB28181 H5 视频适配器",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "mpegts.js": "1.8.0"
+  }
+}
