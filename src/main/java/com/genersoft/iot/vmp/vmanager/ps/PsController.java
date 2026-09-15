@@ -16,6 +16,7 @@ import com.genersoft.iot.vmp.service.IReceiveRtpServerService;
 import com.genersoft.iot.vmp.service.ISendRtpServerService;
 import com.genersoft.iot.vmp.service.bean.InviteErrorCode;
 import com.genersoft.iot.vmp.service.bean.RTPServerParam;
+import com.genersoft.iot.vmp.utils.HttpUtils;
 import com.genersoft.iot.vmp.utils.redis.RedisUtil;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
 import com.genersoft.iot.vmp.vmanager.bean.OtherPsSendInfo;
@@ -24,8 +25,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -114,12 +115,12 @@ public class PsController {
                 log.info("[第三方PS服务对接->开启收流和获取发流信息] 成功回调，callId->{}, data->{}", callId, data);
                 // 将信息写入redis中，以备后用
                 redisTemplate.delete(receiveKey);
-                OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
-                OkHttpClient client = httpClientBuilder.build();
                 String url = callBack + "?callId="  + callId;
                 Request request = new Request.Builder().get().url(url).build();
-                try {
-                    client.newCall(request).execute();
+                try (Response response = HttpUtils.getClient().newCall(request).execute()) {
+                    if (!response.isSuccessful()) {
+                        log.warn("[第三方PS服务对接->开启收流和获取发流信息] 回调返回异常状态, callId={}, status={}", callId, response.code());
+                    }
                 } catch (IOException e) {
                     log.error("[第三方PS服务对接->开启收流和获取发流信息] 成功回调 callId->{}, 发送回调失败", callId, e);
                 }

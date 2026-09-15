@@ -12,13 +12,18 @@ import java.util.zip.ZipOutputStream;
 @Slf4j
 public class HttpUtils {
 
+    private static final OkHttpClient CLIENT = new OkHttpClient();
+
+    public static OkHttpClient getClient() {
+        return CLIENT;
+    }
+
     public static boolean downLoadFile(String url, ZipOutputStream zos) {
-        OkHttpClient client = new OkHttpClient();
         Request request = new Request.Builder()
                 .url(url)
                 .build();
 
-        try (Response response = client.newCall(request).execute()) {
+        try (Response response = CLIENT.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 log.error("下载失败，HTTP 状态码: {}, URL: {}", response.code(), url);
                 return false;

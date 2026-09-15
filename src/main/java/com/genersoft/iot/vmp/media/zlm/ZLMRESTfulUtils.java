@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class ZLMRESTfulUtils {
 
-    private OkHttpClient client;
+    private final OkHttpClient client = buildClient();
 
 
     public interface RequestCallback{
@@ -43,30 +43,23 @@ public class ZLMRESTfulUtils {
     }
 
     private OkHttpClient getClient(Integer readTimeOut){
-        if (client == null) {
-            if (readTimeOut == null) {
-                readTimeOut = 10;
-            }
-            OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
-            //todo 暂时写死超时时间 均为5s
-            // 设置连接超时时间
-            httpClientBuilder.connectTimeout(8,TimeUnit.SECONDS);
-            // 设置读取超时时间
-            httpClientBuilder.readTimeout(readTimeOut,TimeUnit.SECONDS);
-            // 设置连接池
-            httpClientBuilder.connectionPool(new ConnectionPool(16, 5, TimeUnit.MINUTES));
-            if (log.isDebugEnabled()) {
-                HttpLoggingInterceptor logging = new HttpLoggingInterceptor(message -> {
-                    log.debug("http请求参数：" + message);
-                });
-                logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
-                // OkHttp進行添加攔截器loggingInterceptor
-                httpClientBuilder.addInterceptor(logging);
-            }
-            client = httpClientBuilder.build();
+        if (readTimeOut == null || readTimeOut == 10) {
+            return client;
         }
-        return client;
+        return client.newBuilder().readTimeout(readTimeOut, TimeUnit.SECONDS).build();
+    }
 
+    private OkHttpClient buildClient() {
+        OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder()
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .connectionPool(new ConnectionPool(16, 5, TimeUnit.MINUTES));
+        if (log.isDebugEnabled()) {
+            HttpLoggingInterceptor logging = new HttpLoggingInterceptor(message -> log.debug("http请求参数：{}", message));
+            logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
+            httpClientBuilder.addInterceptor(logging);
+        }
+        return httpClientBuilder.build();
     }
 
     public String sendPost(MediaServer mediaServer, String api, Map<String, Object> param, RequestCallback callback) {
@@ -99,16 +92,12 @@ public class ZLMRESTfulUtils {
                 .url(url)
                 .build();
             if (callback == null) {
-                try {
-                    Response response = client.newCall(request).execute();
+                try (Response response = client.newCall(request).execute()) {
                     if (response.isSuccessful()) {
                         ResponseBody responseBody = response.body();
                         if (responseBody != null) {
                             result = responseBody.string();
                         }
-                    }else {
-                        response.close();
-                        Objects.requireNonNull(response.body()).close();
                     }
                 }catch (IOException e) {
                     log.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
@@ -130,17 +119,15 @@ public class ZLMRESTfulUtils {
 
                     @Override
                     public void onResponse(@NotNull Call call, @NotNull Response response){
-                        if (response.isSuccessful()) {
+                        try (response) {
+                            if (response.isSuccessful()) {
                             try {
                                 String responseStr = Objects.requireNonNull(response.body()).string();
                                 callback.run(responseStr);
                             } catch (IOException e) {
                                 log.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
                             }
-
-                        }else {
-                            response.close();
-                            Objects.requireNonNull(response.body()).close();
+                            }
                         }
                     }
 
@@ -185,9 +172,7 @@ public class ZLMRESTfulUtils {
             log.debug(request.toString());
         }
         byte[] result = null;
-        try {
-            OkHttpClient client = getClient();
-            Response response = client.newCall(request).execute();
+        try (Response response = getClient().newCall(request).execute()) {
             if (response.isSuccessful()) {
                 if (targetPath != null) {
                     File snapFolder = new File(targetPath);
@@ -197,11 +182,10 @@ public class ZLMRESTfulUtils {
                         }
                     }
                     File snapFile = new File(targetPath + File.separator + fileName);
-                    FileOutputStream outStream = new FileOutputStream(snapFile);
                     result = Objects.requireNonNull(response.body()).bytes();
-                    outStream.write(result);
-                    outStream.flush();
-                    outStream.close();
+                    try (FileOutputStream outStream = new FileOutputStream(snapFile)) {
+                        outStream.write(result);
+                    }
                 }
             } else {
                 log.error("[ {} ]请求失败: {} {}", url, response.code(), response.message());

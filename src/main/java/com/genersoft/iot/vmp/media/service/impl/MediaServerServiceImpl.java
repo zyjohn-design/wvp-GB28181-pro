@@ -28,11 +28,11 @@ import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
 import com.genersoft.iot.vmp.storager.dao.MediaServerMapper;
 import com.genersoft.iot.vmp.streamProxy.bean.StreamProxy;
 import com.genersoft.iot.vmp.utils.DateUtil;
+import com.genersoft.iot.vmp.utils.HttpUtils;
 import com.genersoft.iot.vmp.utils.redis.RedisUtil;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
 import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -494,21 +494,17 @@ public class MediaServerServiceImpl implements IMediaServerService {
 
     @Override
     public boolean checkMediaRecordServer(String ip, int port) {
-        boolean result = false;
-        OkHttpClient client = new OkHttpClient();
         String url = String.format("http://%s:%s/index/api/record",  ip, port);
         Request request = new Request.Builder()
                 .get()
                 .url(url)
                 .build();
-        try {
-            Response response = client.newCall(request).execute();
-            if (response != null) {
-                result = true;
-            }
-        } catch (Exception e) {}
-
-        return result;
+        try (Response response = HttpUtils.getClient().newCall(request).execute()) {
+            return response.isSuccessful();
+        } catch (Exception e) {
+            log.debug("录像服务探测失败, url={}", url, e);
+            return false;
+        }
     }
 
     @Override

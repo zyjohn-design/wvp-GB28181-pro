@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class AssistRESTfulUtils {
 
-    private OkHttpClient client;
+    private final OkHttpClient client = buildClient();
 
 
     public interface RequestCallback{
@@ -37,33 +37,26 @@ public class AssistRESTfulUtils {
     }
 
     private OkHttpClient getClient(Integer readTimeOut){
-        if (client == null) {
-            if (readTimeOut == null) {
-                readTimeOut = 10;
-            }
-            OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
-            // 设置连接超时时间
-            httpClientBuilder.connectTimeout(8, TimeUnit.SECONDS);
-            // 设置读取超时时间
-            httpClientBuilder.readTimeout(readTimeOut,TimeUnit.SECONDS);
-            // 设置连接池
-            httpClientBuilder.connectionPool(new ConnectionPool(16, 5, TimeUnit.MINUTES));
-            if (log.isDebugEnabled()) {
-                HttpLoggingInterceptor logging = new HttpLoggingInterceptor(message -> {
-                    log.debug("http请求参数：" + message);
-                });
-                logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
-                // OkHttp進行添加攔截器loggingInterceptor
-                httpClientBuilder.addInterceptor(logging);
-            }
-            X509TrustManager manager = SSLSocketClientUtil.getX509TrustManager();
-            // 设置ssl
-            httpClientBuilder.sslSocketFactory(SSLSocketClientUtil.getSocketFactory(manager), manager);
-            httpClientBuilder.hostnameVerifier(SSLSocketClientUtil.getHostnameVerifier());//忽略校验
-            client = httpClientBuilder.build();
+        if (readTimeOut == null || readTimeOut == 10) {
+            return client;
         }
-        return client;
+        return client.newBuilder().readTimeout(readTimeOut, TimeUnit.SECONDS).build();
+    }
 
+    private OkHttpClient buildClient() {
+        OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder()
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .connectionPool(new ConnectionPool(16, 5, TimeUnit.MINUTES));
+        if (log.isDebugEnabled()) {
+            HttpLoggingInterceptor logging = new HttpLoggingInterceptor(message -> log.debug("http请求参数：{}", message));
+            logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
+            httpClientBuilder.addInterceptor(logging);
+        }
+        X509TrustManager manager = SSLSocketClientUtil.getX509TrustManager();
+        httpClientBuilder.sslSocketFactory(SSLSocketClientUtil.getSocketFactory(manager), manager);
+        httpClientBuilder.hostnameVerifier(SSLSocketClientUtil.getHostnameVerifier());
+        return httpClientBuilder.build();
     }
 
 
@@ -102,17 +95,13 @@ public class AssistRESTfulUtils {
                 .url(url)
                 .build();
             if (callback == null) {
-                try {
-                    Response response = client.newCall(request).execute();
+                try (Response response = client.newCall(request).execute()) {
                     if (response.isSuccessful()) {
                         ResponseBody responseBody = response.body();
                         if (responseBody != null) {
                             String responseStr = responseBody.string();
                             responseJSON = JSON.parseObject(responseStr);
                         }
-                    }else {
-                        response.close();
-                        Objects.requireNonNull(response.body()).close();
                     }
                 } catch (ConnectException e) {
                     log.error(String.format("连接Assist失败: %s, %s", e.getCause().getMessage(), e.getMessage()));
@@ -125,7 +114,8 @@ public class AssistRESTfulUtils {
 
                     @Override
                     public void onResponse(@NotNull Call call, @NotNull Response response){
-                        if (response.isSuccessful()) {
+                        try (response) {
+                            if (response.isSuccessful()) {
                             try {
                                 String responseStr = Objects.requireNonNull(response.body()).string();
                                 callback.run(JSON.parseObject(responseStr));
@@ -133,9 +123,7 @@ public class AssistRESTfulUtils {
                                 log.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
                             }
 
-                        }else {
-                            response.close();
-                            Objects.requireNonNull(response.body()).close();
+                            }
                         }
                     }
 
@@ -174,17 +162,13 @@ public class AssistRESTfulUtils {
                 .addHeader("Content-Type", "application/json")
                 .build();
         if (callback == null) {
-            try {
-                Response response = client.newCall(request).execute();
+            try (Response response = client.newCall(request).execute()) {
                 if (response.isSuccessful()) {
                     ResponseBody responseBody = response.body();
                     if (responseBody != null) {
                         String responseStr = responseBody.string();
                         responseJSON = JSON.parseObject(responseStr);
                     }
-                }else {
-                    response.close();
-                    Objects.requireNonNull(response.body()).close();
                 }
             }catch (IOException e) {
                 log.error(String.format("[ %s ]ASSIST请求失败: %s", url, e.getMessage()));
@@ -206,7 +190,8 @@ public class AssistRESTfulUtils {
 
                 @Override
                 public void onResponse(@NotNull Call call, @NotNull Response response){
-                    if (response.isSuccessful()) {
+                    try (response) {
+                        if (response.isSuccessful()) {
                         try {
                             String responseStr = Objects.requireNonNull(response.body()).string();
                             callback.run(responseStr);
@@ -214,9 +199,7 @@ public class AssistRESTfulUtils {
                             log.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
                         }
 
-                    }else {
-                        response.close();
-                        Objects.requireNonNull(response.body()).close();
+                        }
                     }
                 }
 

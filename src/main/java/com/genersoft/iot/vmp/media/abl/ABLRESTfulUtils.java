@@ -28,7 +28,11 @@ public class ABLRESTfulUtils {
 
     private final static Logger logger = LoggerFactory.getLogger(ABLRESTfulUtils.class);
 
-    private OkHttpClient client;
+    private final OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .connectionPool(new ConnectionPool(16, 5, TimeUnit.MINUTES))
+            .build();
 
     public interface RequestCallback{
         void run(String response);
@@ -42,21 +46,10 @@ public class ABLRESTfulUtils {
     }
 
     private OkHttpClient getClient(Integer readTimeOut){
-        if (client == null) {
-            if (readTimeOut == null) {
-                readTimeOut = 10;
-            }
-            OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
-            //todo 暂时写死超时时间 均为5s
-            // 设置连接超时时间
-            httpClientBuilder.connectTimeout(8,TimeUnit.SECONDS);
-            // 设置读取超时时间
-            httpClientBuilder.readTimeout(readTimeOut,TimeUnit.SECONDS);
-            // 设置连接池
-            httpClientBuilder.connectionPool(new ConnectionPool(16, 5, TimeUnit.MINUTES));
-            client = httpClientBuilder.build();
+        if (readTimeOut == null || readTimeOut == 10) {
+            return client;
         }
-        return client;
+        return client.newBuilder().readTimeout(readTimeOut, TimeUnit.SECONDS).build();
 
     }
 
@@ -91,17 +84,13 @@ public class ABLRESTfulUtils {
                 .url(url)
                 .build();
             if (callback == null) {
-                try {
-                    Response response = client.newCall(request).execute();
+                try (Response response = client.newCall(request).execute()) {
 
                     if (response.isSuccessful()) {
                         ResponseBody responseBody = response.body();
                         if (responseBody != null) {
                             result = responseBody.string();
                         }
-                    }else {
-                        response.close();
-                        Objects.requireNonNull(response.body()).close();
                     }
                 }catch (IOException e) {
                     logger.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
@@ -123,7 +112,8 @@ public class ABLRESTfulUtils {
 
                     @Override
                     public void onResponse(@NotNull Call call, @NotNull Response response){
-                        if (response.isSuccessful()) {
+                        try (response) {
+                            if (response.isSuccessful()) {
                             try {
                                 String responseStr = Objects.requireNonNull(response.body()).string();
                                 callback.run(responseStr);
@@ -131,9 +121,7 @@ public class ABLRESTfulUtils {
                                 logger.error(String.format("[ %s ]请求失败: %s", url, e.getMessage()));
                             }
 
-                        }else {
-                            response.close();
-                            Objects.requireNonNull(response.body()).close();
+                            }
                         }
                     }
 
@@ -183,16 +171,12 @@ public class ABLRESTfulUtils {
                 .get()
                 .url(url)
                 .build();
-        try {
-            Response response = client.newCall(request).execute();
+        try (Response response = client.newCall(request).execute()) {
             if (response.isSuccessful()) {
                 ResponseBody responseBody = response.body();
                 if (responseBody != null) {
                     result = responseBody.string();
                 }
-            }else {
-                response.close();
-                Objects.requireNonNull(response.body()).close();
             }
         } catch (ConnectException e) {
             logger.error(String.format("连接ABL失败: %s, %s", e.getCause().getMessage(), e.getMessage()));
@@ -222,10 +206,9 @@ public class ABLRESTfulUtils {
                 .url(httpBuilder.build())
                 .build();
         logger.info(request.toString());
-        try {
-            OkHttpClient client = getClient();
-            Response response = client.newCall(request).execute();
+        try (Response response = getClient().newCall(request).execute()) {
             if (response.isSuccessful()) {
+                byte[] body = Objects.requireNonNull(response.body()).bytes();
                 if (targetPath != null) {
                     File snapFolder = new File(targetPath);
                     if (!snapFolder.exists()) {
@@ -234,17 +217,14 @@ public class ABLRESTfulUtils {
                         }
                     }
                     File snapFile = new File(targetPath + File.separator + fileName);
-                    FileOutputStream outStream = new FileOutputStream(snapFile);
-
-                    outStream.write(Objects.requireNonNull(response.body()).bytes());
-                    outStream.flush();
-                    outStream.close();
+                    try (FileOutputStream outStream = new FileOutputStream(snapFile)) {
+                        outStream.write(body);
+                    }
                 }
-                return Objects.requireNonNull(response.body()).bytes();
+                return body;
             } else {
                 logger.error(String.format("[ %s ]请求失败: %s %s", url, response.code(), response.message()));
             }
-            Objects.requireNonNull(response.body()).close();
         } catch (ConnectException e) {
             logger.error(String.format("连接ABL失败: %s, %s", e.getCause().getMessage(), e.getMessage()));
             logger.info("请检查media配置并确认ABL已启动...");
@@ -265,9 +245,7 @@ public class ABLRESTfulUtils {
                 .url(httpBuilder.build())
                 .build();
         logger.info(request.toString());
-        try {
-            OkHttpClient client = getClient();
-            Response response = client.newCall(request).execute();
+        try (Response response = getClient().newCall(request).execute()) {
             if (response.isSuccessful()) {
                 if (targetPath != null) {
                     File snapFolder = new File(targetPath);
@@ -277,18 +255,15 @@ public class ABLRESTfulUtils {
                         }
                     }
                     File snapFile = new File(targetPath + File.separator + fileName);
-                    FileOutputStream outStream = new FileOutputStream(snapFile);
-
-                    outStream.write(Objects.requireNonNull(response.body()).bytes());
-                    outStream.flush();
-                    outStream.close();
+                    try (FileOutputStream outStream = new FileOutputStream(snapFile)) {
+                        outStream.write(Objects.requireNonNull(response.body()).bytes());
+                    }
                 } else {
                     logger.error(String.format("[ %s ]请求失败: %s %s", url, response.code(), response.message()));
                 }
             } else {
                 logger.error(String.format("[ %s ]请求失败: %s %s", url, response.code(), response.message()));
             }
-            Objects.requireNonNull(response.body()).close();
         } catch (ConnectException e) {
             logger.error(String.format("连接ABL失败: %s, %s", e.getCause().getMessage(), e.getMessage()));
             logger.info("请检查media配置并确认ABL已启动...");

@@ -16,6 +16,7 @@ import com.genersoft.iot.vmp.service.IReceiveRtpServerService;
 import com.genersoft.iot.vmp.service.ISendRtpServerService;
 import com.genersoft.iot.vmp.service.bean.InviteErrorCode;
 import com.genersoft.iot.vmp.service.bean.RTPServerParam;
+import com.genersoft.iot.vmp.utils.HttpUtils;
 import com.genersoft.iot.vmp.utils.redis.RedisUtil;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
 import com.genersoft.iot.vmp.vmanager.bean.OtherRtpSendInfo;
@@ -24,8 +25,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.util.ObjectUtils;
@@ -113,12 +114,12 @@ public class RtpController {
             }
             if (code == InviteErrorCode.SUCCESS.getCode()) {
                 log.info("[开启收流和获取发流信息] 视频流收流成功，callId->{}，stream->{}", callId, stream);
-                OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
-                OkHttpClient client = httpClientBuilder.build();
                 String url = callBack + "?callId="  + callId;
                 Request request = new Request.Builder().get().url(url).build();
-                try {
-                    client.newCall(request).execute();
+                try (Response response = HttpUtils.getClient().newCall(request).execute()) {
+                    if (!response.isSuccessful()) {
+                        log.warn("[第三方服务对接->开启收流和获取发流信息] 回调返回异常状态, callId={}, status={}", callId, response.code());
+                    }
                 } catch (IOException e) {
                     log.error("[第三方服务对接->开启收流和获取发流信息] 等待收流超时 callId->{}, 发送回调失败", callId, e);
                 }
