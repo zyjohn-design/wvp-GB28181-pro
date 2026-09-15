@@ -7,10 +7,14 @@ import lombok.Setter;
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.SpringSecurityCoreVersion;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Set;
 
 public class LoginUser implements UserDetails, CredentialsContainer {
 
@@ -42,7 +46,37 @@ public class LoginUser implements UserDetails, CredentialsContainer {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return null;
+        Set<GrantedAuthority> authorities = new LinkedHashSet<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_VIEWER"));
+
+        Role role = user.getRole();
+        if (role == null) {
+            return authorities;
+        }
+
+        String configuredAuthority = role.getAuthority();
+        if (role.getId() == 1 || containsAuthority(configuredAuthority, "0", "admin")) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            authorities.add(new SimpleGrantedAuthority("ROLE_OPERATOR"));
+        } else if (containsAuthority(configuredAuthority, "1", "operator", "write")) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_OPERATOR"));
+        }
+        return authorities;
+    }
+
+    private boolean containsAuthority(String configuredAuthority, String... expectedValues) {
+        if (configuredAuthority == null || configuredAuthority.isBlank()) {
+            return false;
+        }
+        String[] values = configuredAuthority.toLowerCase(Locale.ROOT).split("[,;\\s]+");
+        for (String value : values) {
+            for (String expectedValue : expectedValues) {
+                if (expectedValue.equals(value)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override

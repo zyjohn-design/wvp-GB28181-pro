@@ -28,7 +28,7 @@ public class RoleController {
     @PostMapping("/add")
     @Operation(summary = "添加角色", security = @SecurityRequirement(name = JwtUtils.HEADER))
     @Parameter(name = "name", description = "角色名", required = true)
-    @Parameter(name = "authority", description = "权限（自行定义内容，目前未使用）", required = true)
+    @Parameter(name = "authority", description = "权限：0/admin=管理员，1/operator/write=操作员，2或其他值=只读", required = true)
     public void add(@RequestParam String name,
                                                   @RequestParam(required = false) String authority){
         // 获取当前登录用户id

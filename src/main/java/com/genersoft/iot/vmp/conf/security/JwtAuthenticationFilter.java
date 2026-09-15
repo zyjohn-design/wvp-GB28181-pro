@@ -1,9 +1,9 @@
 package com.genersoft.iot.vmp.conf.security;
 
 import com.genersoft.iot.vmp.conf.UserSetting;
+import com.genersoft.iot.vmp.conf.security.dto.LoginUser;
 import com.genersoft.iot.vmp.conf.security.dto.JwtUser;
 import com.genersoft.iot.vmp.service.IUserService;
-import com.genersoft.iot.vmp.storager.dao.dto.Role;
 import com.genersoft.iot.vmp.storager.dao.dto.User;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -13,13 +13,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * jwt token 过滤器
@@ -41,7 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest servletRequest, HttpServletResponse response, FilterChain chain) throws IOException, ServletException {
-        ContentCachingRequestWrapper request = new ContentCachingRequestWrapper(servletRequest);
+        HttpServletRequest request = servletRequest;
         // 忽略登录请求的token验证
         String requestURI = request.getRequestURI();
         if ((requestURI.startsWith("/doc.html") || requestURI.startsWith("/swagger-ui")  ) && !userSetting.getDocEnable()) {
@@ -55,7 +56,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (!userSetting.getInterfaceAuthentication()) {
-            UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(null, null, new ArrayList<>() );
+            UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(null, null, List.of(
+                    new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("ROLE_OPERATOR"),
+                    new SimpleGrantedAuthority("ROLE_VIEWER")));
             SecurityContextHolder.getContext().setAuthentication(token);
             chain.doFilter(request, response);
             return;
@@ -104,20 +108,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             default:
         }
         // 构建UsernamePasswordAuthenticationToken,这里密码为null，是因为提供了正确的JWT,实现自动登录
-        User user = new User();
-        user.setId(jwtUser.getUserId());
-        user.setUsername(jwtUser.getUserName());
-        user.setPassword(jwtUser.getPassword());
-        Role role = new Role();
-        role.setId(jwtUser.getRoleId());
-        user.setRole(role);
-
-        // 加载真实用户（含 defaultPassword），用于默认密码访问限制
+        // 使用数据库中的实时角色，角色修改或用户删除后立即生效
         User dbUser = userService.getUserById(jwtUser.getUserId());
-        user.setDefaultPassword(dbUser != null && dbUser.isDefaultPassword());
+        if (dbUser == null) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
 
         // 默认密码用户：仅允许修改密码与登出接口
-        if (user.isDefaultPassword()) {
+        if (dbUser.isDefaultPassword()) {
             if (!requestURI.equalsIgnoreCase("/api/user/changePassword")
                     && !requestURI.equalsIgnoreCase("/api/user/logout")) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -125,7 +124,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
 
-        UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(user, jwtUser.getPassword(), new ArrayList<>() );
+        LoginUser loginUser = new LoginUser(dbUser, LocalDateTime.now());
+        UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(
+                dbUser, null, loginUser.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(token);
         chain.doFilter(request, response);
     }

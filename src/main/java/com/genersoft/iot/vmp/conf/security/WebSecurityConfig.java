@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -25,6 +26,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 配置Spring Security
@@ -37,6 +39,17 @@ import java.util.List;
 @Order(1)
 @Slf4j
 public class WebSecurityConfig {
+
+    private static final Set<String> GET_ACTION_SEGMENTS = Set.of(
+            "add", "update", "delete", "remove", "reset", "sync", "start", "stop", "pause", "resume",
+            "seek", "speed", "control", "shutdown", "load", "forceclose", "exit", "enable", "disable",
+            "link", "save", "clear", "draw", "teleboot", "guard", "ptz", "fill-light", "wiper",
+            "factory-reset", "temp-position-tracking", "confirmation-alarm-message", "text-msg",
+            "telephone-callback", "door", "play", "open", "close", "touch", "call", "continue",
+            "switch", "upload", "subscribe", "push", "broadcast", "auxiliary", "iris",
+            "focus", "zoom_in", "zoom_out", "drag_zoom_in", "drag_zoom_out", "home_position",
+            "i_frame", "reset_alarm", "addbycivilcode", "loadrecord"
+    );
 
     @Autowired
     private UserSetting userSetting;
@@ -117,6 +130,15 @@ public class WebSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
                         .requestMatchers(defaultExcludes.toArray(new String[0])).permitAll()
+                        .requestMatchers("/api/user/changePassword", "/api/user/logout", "/api/user/userInfo").authenticated()
+                        .requestMatchers("/api/role/**", "/api/userApiKey/**", "/api/user/**", "/api/log/**",
+                                "/api/test/**", "/api/server/shutdown", "/api/server/config",
+                                "/api/server/system/configInfo").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/**").hasAnyRole("ADMIN", "OPERATOR")
+                        .requestMatchers(WebSecurityConfig::isStateChangingGet).hasAnyRole("ADMIN", "OPERATOR")
                         .anyRequest().authenticated()
                 )
                 // 异常处理器
@@ -126,6 +148,26 @@ public class WebSecurityConfig {
                         .logoutSuccessHandler(logoutHandler));
 
         return http.build();
+    }
+
+    private static boolean isStateChangingGet(jakarta.servlet.http.HttpServletRequest request) {
+        if (!HttpMethod.GET.matches(request.getMethod())) {
+            return false;
+        }
+        String requestUri = request.getRequestURI();
+        if (!requestUri.startsWith("/api/")) {
+            return false;
+        }
+        if (requestUri.equalsIgnoreCase("/api/device/control/record")
+                || requestUri.equalsIgnoreCase("/api/channel/playback")) {
+            return true;
+        }
+        for (String segment : requestUri.split("/")) {
+            if (GET_ACTION_SEGMENTS.contains(segment.toLowerCase(java.util.Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     CorsConfigurationSource configurationSource() {
