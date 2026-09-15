@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +30,9 @@ public class DeviceStatusManager {
     @Autowired
     private EventPublisher eventPublisher;
 
+    @Autowired
+    private TaskExecutor taskExecutor;
+
     private final String prefix = "VMP_DEVICE_EXPIRES";
 
     public String redisKey(){
@@ -46,8 +50,7 @@ public class DeviceStatusManager {
 
         if (expiredIds != null && !expiredIds.isEmpty()) {
             redisTemplate.opsForZSet().remove(redisKey(), expiredIds.toArray());
-            // 使用 JDK 21 虚拟线程异步分发事件
-            Thread.startVirtualThread(() -> {
+            taskExecutor.execute(() -> {
                 // 获取详情后删除缓存
 //                    Device device = redisCatchStorage.getDevice(deviceId);
 //                    redisCatchStorage.removeDevice(deviceId);

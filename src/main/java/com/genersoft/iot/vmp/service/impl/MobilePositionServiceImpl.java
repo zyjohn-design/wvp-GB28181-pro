@@ -1,5 +1,6 @@
 package com.genersoft.iot.vmp.service.impl;
 
+import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.gb28181.bean.MobilePosition;
 import com.genersoft.iot.vmp.gb28181.bean.Platform;
 import com.genersoft.iot.vmp.gb28181.dao.MobilePositionMapper;
@@ -11,7 +12,9 @@ import com.genersoft.iot.vmp.service.IMobilePositionService;
 import com.genersoft.iot.vmp.utils.DateUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.annotation.PostConstruct;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -19,14 +22,15 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MobilePositionServiceImpl implements IMobilePositionService {
 
-    private final ConcurrentLinkedQueue<MobilePosition> mobilePositionQueue = new ConcurrentLinkedQueue<>();
+    private BlockingQueue<MobilePosition> mobilePositionQueue;
 
     private final Map<String, ISourceOtherService> sourceOtherServiceMap;
 
@@ -36,11 +40,20 @@ public class MobilePositionServiceImpl implements IMobilePositionService {
 
     private final PlatformMapper platformMapper;
 
+    private final UserSetting userSetting;
+
+    private final TaskExecutor taskExecutor;
+
+    @PostConstruct
+    public void init() {
+        mobilePositionQueue = new LinkedBlockingQueue<>(Math.max(1_000, userSetting.getMaxNotifyCountQueue()));
+    }
+
     /**
      * 查询移动位置轨迹
      */
     @Override
-    public synchronized List<MobilePosition> queryMobilePositions(Integer channelId, String startTime, String endTime) {
+    public List<MobilePosition> queryMobilePositions(Integer channelId, String startTime, String endTime) {
         Long startTimestamp = null;
         Long endTimestamp = null;
         if (startTime != null) {
@@ -72,7 +85,7 @@ public class MobilePositionServiceImpl implements IMobilePositionService {
             return;
         }
         if (event.getMobilePositionList().get(0).getChannelId() != null) {
-            mobilePositionQueue.addAll(event.getMobilePositionList());
+            enqueuePositions(event.getMobilePositionList());
             return;
         }
         for (ISourceOtherService sourceOtherService : sourceOtherServiceMap.values()) {
@@ -80,7 +93,7 @@ public class MobilePositionServiceImpl implements IMobilePositionService {
                 // 此时已经完成了通道ID的添加，以及坐标系的转换，后续只需要将数据保存到数据库即可
                 Boolean addResult = sourceOtherService.addChannelIdForMobilePosition(event.getMobilePositionList());
                 if (addResult != null && addResult) {
-                    mobilePositionQueue.addAll(event.getMobilePositionList());
+                    enqueuePositions(event.getMobilePositionList());
                 }
             }catch (Exception e) {
                 log.error("[移动位置事件] 处理移动位置事件失败", e);
@@ -94,20 +107,14 @@ public class MobilePositionServiceImpl implements IMobilePositionService {
             return;
         }
         List<MobilePosition> handlerCatchDataList = new ArrayList<>();
-        int size = mobilePositionQueue.size();
-        for (int i = 0; i < size; i++) {
-            MobilePosition poll = mobilePositionQueue.poll();
-            if (poll != null) {
-                handlerCatchDataList.add(poll);
-            }
-        }
+        mobilePositionQueue.drainTo(handlerCatchDataList, 5_000);
         if (handlerCatchDataList.isEmpty()) {
             return;
         }
         List<MobilePosition> mobilePositionList = handlerCatchDataList.stream().filter(
-                mobilePosition -> mobilePosition.getChannelId() != 0).toList();
+                mobilePosition -> mobilePosition.getChannelId() != null && mobilePosition.getChannelId() != 0).toList();
         // 发送通知，方便国标级联转发给上级
-        Thread.startVirtualThread(() -> platformChannelService.notifyMobilePosition(mobilePositionList));
+        taskExecutor.execute(() -> platformChannelService.notifyMobilePosition(mobilePositionList));
 
         // 批量保存到数据库
         int batchSize = 1000;
@@ -115,6 +122,15 @@ public class MobilePositionServiceImpl implements IMobilePositionService {
             int end = Math.min(i + batchSize, mobilePositionList.size());
             List<MobilePosition> batchList = mobilePositionList.subList(i, end);
             mobilePositionMapper.batchAdd(batchList);
+        }
+    }
+
+    private void enqueuePositions(List<? extends MobilePosition> positions) {
+        for (MobilePosition position : positions) {
+            if (!mobilePositionQueue.offer(position)) {
+                log.warn("移动位置待处理队列已满，丢弃后续数据，channelId={}", position.getChannelId());
+                break;
+            }
         }
     }
 

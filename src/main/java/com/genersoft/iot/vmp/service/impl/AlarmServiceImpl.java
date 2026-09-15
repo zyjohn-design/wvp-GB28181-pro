@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 @Slf4j
 @Service
@@ -52,13 +54,16 @@ public class AlarmServiceImpl implements IAlarmService {
 
     private final IGbChannelService gbChannelService;
 
+    private final TaskExecutor taskExecutor;
+
     // 使用Caffeine缓存设备通道信息，避免频繁查询数据库，提升性能
     private Cache<String, DeviceChannel> channelCache = null;
 
-    private final ConcurrentLinkedQueue<Alarm> alarmQueue = new ConcurrentLinkedQueue<>();
+    private BlockingQueue<Alarm> alarmQueue;
 
     @PostConstruct
     public void init() {
+        alarmQueue = new LinkedBlockingQueue<>(Math.max(1_000, userSetting.getMaxNotifyCountQueue()));
         // 初始化Caffeine缓存，设置合理的过期时间和最大容量
         channelCache = Caffeine.newBuilder()
                 .maximumSize(userSetting.getAlarmCatchSize()) // 固定容量
@@ -90,7 +95,9 @@ public class AlarmServiceImpl implements IAlarmService {
             alarm.setChannelId(deviceChannel.getId());
             // 分配一个快照路径，后续在去补充快照文件
             alarm.setSnapPath("snap/alarm_" + notify.getChannelId() + "_" + System.currentTimeMillis() + ".jpg");
-            alarmQueue.offer(alarm);
+            if (!alarmQueue.offer(alarm)) {
+                log.warn("报警待处理队列已满，丢弃报警，alarmId：{}", alarm.getId());
+            }
         }
     }
 
@@ -112,13 +119,7 @@ public class AlarmServiceImpl implements IAlarmService {
             return;
         }
         List<Alarm> handlerCatchDataList = new ArrayList<>();
-        int size = alarmQueue.size();
-        for (int i = 0; i < size; i++) {
-            Alarm poll = alarmQueue.poll();
-            if (poll != null) {
-                handlerCatchDataList.add(poll);
-            }
-        }
+        alarmQueue.drainTo(handlerCatchDataList, 5_000);
         if (handlerCatchDataList.isEmpty()) {
             return;
         }
@@ -130,10 +131,9 @@ public class AlarmServiceImpl implements IAlarmService {
             alarmMapper.insertAlarms(batchList);
         }
         // 按照通道ID分组，去补充快照文件
-        handlerCatchDataList.forEach(this::getSnapByAlarm);
+        handlerCatchDataList.forEach(alarm -> taskExecutor.execute(() -> getSnapByAlarm(alarm)));
     }
 
-    @Async
     public void getSnapByAlarm(Alarm alarm) {
         CommonGBChannel channel = gbChannelService.getOne(alarm.getChannelId());
         if (channel == null) {

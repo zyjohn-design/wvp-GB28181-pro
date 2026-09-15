@@ -140,10 +140,10 @@ public class DeviceServiceImpl implements IDeviceService {
             List<Device> devicesInRedis = redisCatchStorage.getAllDevices();
             if (!devicesInRedis.isEmpty()) {
                 Map<String, Device> deviceMapInDb = new HashMap<>();
-                devicesInDb.parallelStream().forEach(device -> {
+                devicesInDb.forEach(device -> {
                     deviceMapInDb.put(device.getDeviceId(), device);
                 });
-                devicesInRedis.parallelStream().forEach(device -> {
+                devicesInRedis.forEach(device -> {
                     if (deviceMapInDb.get(device.getDeviceId()) == null
                             && userSetting.getServerId().equals(device.getServerId())) {
                         redisCatchStorage.removeDevice(device.getDeviceId());

@@ -29,12 +29,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.Executors;
 
 @Slf4j
 @Service
@@ -70,6 +70,9 @@ public class CameraChannelService implements CommandLineRunner {
 
     @Autowired
     private DynamicTask dynamicTask;
+
+    @Autowired
+    private TaskExecutor taskExecutor;
 
     @Override
     public void run(String... args) {
@@ -328,9 +331,8 @@ public class CameraChannelService implements CommandLineRunner {
     @EventListener
     public void onApplicationEvent(MobilePositionEvent event) {
         List<? extends MobilePosition> mobilePositionList = event.getMobilePositionList();
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            for (MobilePosition mobilePosition : mobilePositionList) {
-                executor.submit(() -> {
+        for (MobilePosition mobilePosition : mobilePositionList) {
+            taskExecutor.execute(() -> {
                     // 从redis补充信息
                     SYMember member = getMember(mobilePosition.getChannelDeviceId());
                     if (member == null) {
@@ -353,8 +355,7 @@ public class CameraChannelService implements CommandLineRunner {
                     jsonObject.put("gbDeviceId", mobilePosition.getChannelDeviceId());
                     log.info("[SY-redis发送通知-移动设备位置信息] 发送 {}: {}", REDIS_GPS_MESSAGE, jsonObject.toString());
                     redisTemplateForString.convertAndSend(REDIS_GPS_MESSAGE, jsonObject.toString());
-                });
-            }
+            });
         }
 
 

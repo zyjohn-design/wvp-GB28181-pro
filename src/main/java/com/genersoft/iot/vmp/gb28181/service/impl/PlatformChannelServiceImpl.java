@@ -17,6 +17,7 @@ import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
@@ -25,7 +26,6 @@ import javax.sip.InvalidArgumentException;
 import javax.sip.SipException;
 import java.text.ParseException;
 import java.util.*;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
@@ -57,6 +57,8 @@ public class PlatformChannelServiceImpl implements IPlatformChannelService {
     private final UserSetting userSetting;
 
     private final IRedisRpcService redisRpcService;
+
+    private final TaskExecutor taskExecutor;
 
 
     // 监听通道信息变化
@@ -854,13 +856,12 @@ public class PlatformChannelServiceImpl implements IPlatformChannelService {
         Map<Integer, List<MobilePosition>> channelIdMap = mobilePositionList.stream().collect(Collectors.groupingBy(MobilePosition::getChannelId));
 
         List<ShareGBChannel> shareGBChannels = platformChannelMapper.queryShareChannelInPlatformsAndChannelIds(platformMap.values(), channelIdMap.keySet());
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            for (ShareGBChannel shareGBChannel : shareGBChannels) {
-                List<MobilePosition> mobilePositions = channelIdMap.get(shareGBChannel.getGbId());
-                if (mobilePositions == null || mobilePositions.isEmpty()) {
-                    continue;
-                }
-                executor.submit(() -> {
+        for (ShareGBChannel shareGBChannel : shareGBChannels) {
+            List<MobilePosition> mobilePositions = channelIdMap.get(shareGBChannel.getGbId());
+            if (mobilePositions == null || mobilePositions.isEmpty()) {
+                continue;
+            }
+            taskExecutor.execute(() -> {
                     Platform platform = platformMap.get(shareGBChannel.getPlatformId());
                     if (platform == null) {
                         log.info("[查询平台] 平台ID：{} 未查询到", shareGBChannel.getPlatformId());
@@ -883,8 +884,7 @@ public class PlatformChannelServiceImpl implements IPlatformChannelService {
                             log.error("[命令发送失败] 国标级联 Catalog通知: {}", e.getMessage());
                         }
                     }
-                });
-            }
+            });
         }
     }
 }
