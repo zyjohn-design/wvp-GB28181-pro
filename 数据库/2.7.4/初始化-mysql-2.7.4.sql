@@ -55,6 +55,8 @@ create table IF NOT EXISTS wvp_device_alarm
     alarm_type        character varying(50) COMMENT '报警类型',
     create_time       character varying(50) not null COMMENT '数据入库时间'
 );
+create index idx_device_alarm_device_time on wvp_device_alarm (device_id, alarm_time);
+create index idx_device_alarm_channel_time on wvp_device_alarm (channel_id, alarm_time);
 
 -- 存储移动位置订阅上报的数据
 drop table IF EXISTS wvp_mobile_position;
@@ -70,6 +72,7 @@ create table IF NOT EXISTS wvp_mobile_position
     direction       double precision COMMENT '方向角',
     create_time     character varying(50) COMMENT '入库时间'
 );
+create index idx_mobile_position_channel_time on wvp_mobile_position (channel_id, timestamp);
 
 -- 保存设备下的通道信息以及扩展属性
 drop table IF EXISTS wvp_device_channel;
@@ -378,6 +381,10 @@ create table IF NOT EXISTS wvp_cloud_record
     file_size       bigint COMMENT '文件大小',
     time_len        double precision COMMENT '时长'
 );
+create index idx_cloud_record_app_stream_start on wvp_cloud_record (app, stream, start_time);
+create index idx_cloud_record_call_id on wvp_cloud_record (call_id);
+create index idx_cloud_record_cleanup on wvp_cloud_record (media_server_id, collect, end_time);
+create index idx_cloud_record_media_file on wvp_cloud_record (media_server_id, file_path);
 
 -- 平台用户信息
 drop table IF EXISTS wvp_user;
@@ -537,3 +544,5 @@ create table IF NOT EXISTS wvp_alarm (
                           alarm_type integer COMMENT '报警类别',
                           alarm_time bigint COMMENT '报警时间'
 );
+create index idx_alarm_type_time on wvp_alarm (alarm_type, alarm_time);
+create index idx_alarm_time on wvp_alarm (alarm_time);

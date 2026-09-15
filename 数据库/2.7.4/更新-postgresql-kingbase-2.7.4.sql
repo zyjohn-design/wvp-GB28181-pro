@@ -130,3 +130,14 @@ UPDATE wvp_user
    SET default_password = TRUE
  WHERE username = 'admin'
    AND password = '21232f297a57a5a743894a0e4a801fc3';
+
+-- 高频查询索引
+CREATE INDEX IF NOT EXISTS idx_device_alarm_device_time ON wvp_device_alarm (device_id, alarm_time);
+CREATE INDEX IF NOT EXISTS idx_device_alarm_channel_time ON wvp_device_alarm (channel_id, alarm_time);
+CREATE INDEX IF NOT EXISTS idx_mobile_position_channel_time ON wvp_mobile_position (channel_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_cloud_record_app_stream_start ON wvp_cloud_record (app, stream, start_time);
+CREATE INDEX IF NOT EXISTS idx_cloud_record_call_id ON wvp_cloud_record (call_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_record_cleanup ON wvp_cloud_record (media_server_id, collect, end_time);
+CREATE INDEX IF NOT EXISTS idx_cloud_record_media_file ON wvp_cloud_record (media_server_id, file_path);
+CREATE INDEX IF NOT EXISTS idx_alarm_type_time ON wvp_alarm (alarm_type, alarm_time);
+CREATE INDEX IF NOT EXISTS idx_alarm_time ON wvp_alarm (alarm_time);

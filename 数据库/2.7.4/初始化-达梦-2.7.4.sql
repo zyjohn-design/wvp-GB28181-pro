@@ -121,6 +121,8 @@ CREATE TABLE wvp_device_alarm
     alarm_type        varchar(50),
     create_time       varchar(50) not null
 );
+CREATE INDEX idx_device_alarm_device_time ON wvp_device_alarm (device_id, alarm_time);
+CREATE INDEX idx_device_alarm_channel_time ON wvp_device_alarm (channel_id, alarm_time);
 COMMENT ON TABLE wvp_device_alarm IS '记录各设备上报的报警信息';
 COMMENT ON COLUMN wvp_device_alarm.id IS '主键ID';
 COMMENT ON COLUMN wvp_device_alarm.device_id IS '国标设备ID';
@@ -156,6 +158,7 @@ CREATE TABLE wvp_mobile_position
     direction       double,
     create_time     varchar(50)
 );
+CREATE INDEX idx_mobile_position_channel_time ON wvp_mobile_position (channel_id, timestamp);
 COMMENT ON TABLE wvp_mobile_position IS '存储移动位置订阅上报的数据';
 COMMENT ON COLUMN wvp_mobile_position.id IS '主键ID';
 COMMENT ON COLUMN wvp_mobile_position.channel_id IS '通道ID';
@@ -784,6 +787,10 @@ CREATE TABLE wvp_cloud_record
     file_size       bigint,
     time_len        double
 );
+CREATE INDEX idx_cloud_record_app_stream_start ON wvp_cloud_record (app, stream, start_time);
+CREATE INDEX idx_cloud_record_call_id ON wvp_cloud_record (call_id);
+CREATE INDEX idx_cloud_record_cleanup ON wvp_cloud_record (media_server_id, collect, end_time);
+CREATE INDEX idx_cloud_record_media_file ON wvp_cloud_record (media_server_id, file_path);
 COMMENT ON TABLE wvp_cloud_record IS '云端录像记录';
 COMMENT ON COLUMN wvp_cloud_record.id IS '主键ID';
 COMMENT ON COLUMN wvp_cloud_record.app IS '应用名';
@@ -1128,6 +1135,8 @@ CREATE TABLE wvp_alarm (
                            alarm_type  int,
                            alarm_time  bigint
 );
+CREATE INDEX idx_alarm_type_time ON wvp_alarm (alarm_type, alarm_time);
+CREATE INDEX idx_alarm_time ON wvp_alarm (alarm_time);
 COMMENT ON COLUMN wvp_alarm.id IS '主键ID';
 COMMENT ON COLUMN wvp_alarm.channel_id IS '关联通道的数据库id';
 COMMENT ON COLUMN wvp_alarm.description IS '报警描述';

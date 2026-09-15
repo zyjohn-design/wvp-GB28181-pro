@@ -219,6 +219,43 @@ DELIMITER ;
 call wvp_20260417();
 DROP PROCEDURE wvp_20260417;
 
+/* 高频查询索引 */
+DROP PROCEDURE IF EXISTS `wvp_add_performance_indexes`;
+DELIMITER //
+CREATE PROCEDURE `wvp_add_performance_indexes`()
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_device_alarm' AND INDEX_NAME = 'idx_device_alarm_device_time') THEN
+        CREATE INDEX idx_device_alarm_device_time ON wvp_device_alarm (device_id, alarm_time);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_device_alarm' AND INDEX_NAME = 'idx_device_alarm_channel_time') THEN
+        CREATE INDEX idx_device_alarm_channel_time ON wvp_device_alarm (channel_id, alarm_time);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_mobile_position' AND INDEX_NAME = 'idx_mobile_position_channel_time') THEN
+        CREATE INDEX idx_mobile_position_channel_time ON wvp_mobile_position (channel_id, timestamp);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_cloud_record' AND INDEX_NAME = 'idx_cloud_record_app_stream_start') THEN
+        CREATE INDEX idx_cloud_record_app_stream_start ON wvp_cloud_record (app, stream, start_time);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_cloud_record' AND INDEX_NAME = 'idx_cloud_record_call_id') THEN
+        CREATE INDEX idx_cloud_record_call_id ON wvp_cloud_record (call_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_cloud_record' AND INDEX_NAME = 'idx_cloud_record_cleanup') THEN
+        CREATE INDEX idx_cloud_record_cleanup ON wvp_cloud_record (media_server_id, collect, end_time);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_cloud_record' AND INDEX_NAME = 'idx_cloud_record_media_file') THEN
+        CREATE INDEX idx_cloud_record_media_file ON wvp_cloud_record (media_server_id, file_path);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_alarm' AND INDEX_NAME = 'idx_alarm_type_time') THEN
+        CREATE INDEX idx_alarm_type_time ON wvp_alarm (alarm_type, alarm_time);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wvp_alarm' AND INDEX_NAME = 'idx_alarm_time') THEN
+        CREATE INDEX idx_alarm_time ON wvp_alarm (alarm_time);
+    END IF;
+END; //
+DELIMITER ;
+CALL wvp_add_performance_indexes();
+DROP PROCEDURE wvp_add_performance_indexes;
+
 /*
 * 20260521 添加wvp_device_channel唯一约束，防止通道重复写入
 */

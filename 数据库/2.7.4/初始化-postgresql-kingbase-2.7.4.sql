@@ -88,6 +88,8 @@ create table IF NOT EXISTS wvp_device_alarm
     alarm_type        character varying(50),
     create_time       character varying(50) not null
 );
+create index idx_device_alarm_device_time on wvp_device_alarm (device_id, alarm_time);
+create index idx_device_alarm_channel_time on wvp_device_alarm (channel_id, alarm_time);
 COMMENT ON TABLE wvp_device_alarm IS '记录各设备上报的报警信息';
 COMMENT ON COLUMN wvp_device_alarm.id IS '主键ID';
 COMMENT ON COLUMN wvp_device_alarm.device_id IS '国标设备ID';
@@ -115,6 +117,7 @@ create table IF NOT EXISTS wvp_mobile_position
     direction       double precision,
     create_time     character varying(50)
 );
+create index idx_mobile_position_channel_time on wvp_mobile_position (channel_id, timestamp);
 COMMENT ON TABLE wvp_mobile_position IS '存储移动位置订阅上报的数据';
 COMMENT ON COLUMN wvp_mobile_position.id IS '主键ID';
 COMMENT ON COLUMN wvp_mobile_position.channel_id IS '通道ID';
@@ -671,6 +674,10 @@ create table IF NOT EXISTS wvp_cloud_record
     file_size       int8,
     time_len        double precision
 );
+create index idx_cloud_record_app_stream_start on wvp_cloud_record (app, stream, start_time);
+create index idx_cloud_record_call_id on wvp_cloud_record (call_id);
+create index idx_cloud_record_cleanup on wvp_cloud_record (media_server_id, collect, end_time);
+create index idx_cloud_record_media_file on wvp_cloud_record (media_server_id, file_path);
 COMMENT ON TABLE wvp_cloud_record IS '云端录像记录';
 COMMENT ON COLUMN wvp_cloud_record.id IS '主键ID';
 COMMENT ON COLUMN wvp_cloud_record.app IS '应用名';
@@ -929,6 +936,8 @@ create table IF NOT EXISTS wvp_alarm (
         alarm_type integer,
         alarm_time bigint
 );
+create index idx_alarm_type_time on wvp_alarm (alarm_type, alarm_time);
+create index idx_alarm_time on wvp_alarm (alarm_time);
 COMMENT ON COLUMN wvp_alarm.id IS '主键ID';
 COMMENT ON COLUMN wvp_alarm.channel_id IS '关联通道的数据库id';
 COMMENT ON COLUMN wvp_alarm.description IS '报警描述';
@@ -938,5 +947,4 @@ COMMENT ON COLUMN wvp_alarm.longitude IS '报警附带的经度';
 COMMENT ON COLUMN wvp_alarm.latitude IS '报警附带的纬度';
 COMMENT ON COLUMN wvp_alarm.alarm_type IS '报警类别';
 COMMENT ON COLUMN wvp_alarm.alarm_time IS '报警时间';
-
 
