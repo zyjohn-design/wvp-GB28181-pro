@@ -6,6 +6,7 @@ import com.genersoft.iot.vmp.conf.exception.ControllerException;
 import com.genersoft.iot.vmp.conf.security.JwtUtils;
 import com.genersoft.iot.vmp.gb28181.bean.Platform;
 import com.genersoft.iot.vmp.gb28181.bean.PlatformChannel;
+import com.genersoft.iot.vmp.gb28181.bean.PlatformRegisterResult;
 import com.genersoft.iot.vmp.gb28181.bean.SubscribeHolder;
 import com.genersoft.iot.vmp.gb28181.controller.bean.UpdateChannelParam;
 import com.genersoft.iot.vmp.gb28181.service.IPlatformChannelService;
@@ -85,6 +86,20 @@ public class PlatformController {
             }
         }
         return parentPlatformPageInfo;
+    }
+
+    @Operation(summary = "测试注册, 立即向上级平台发送一次REGISTER并返回明确结果", security = @SecurityRequirement(name = JwtUtils.HEADER))
+    @Parameter(name = "id", description = "平台的数据库ID", required = true)
+    @GetMapping("/register/test")
+    public PlatformRegisterResult testRegister(Integer id) {
+        return platformService.testRegister(id);
+    }
+
+    @Operation(summary = "查询最近一次注册结果", security = @SecurityRequirement(name = JwtUtils.HEADER))
+    @Parameter(name = "serverGBId", description = "上级平台国标编号", required = true)
+    @GetMapping("/register/result")
+    public PlatformRegisterResult getRegisterResult(String serverGBId) {
+        return platformService.getLastRegisterResult(serverGBId);
     }
 
     @Operation(summary = "添加上级平台信息", security = @SecurityRequirement(name = JwtUtils.HEADER))

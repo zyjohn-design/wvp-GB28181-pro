@@ -16,8 +16,10 @@ import com.genersoft.iot.vmp.gb28181.service.IPlatformService;
 import com.genersoft.iot.vmp.gb28181.session.SSRCFactory;
 import com.genersoft.iot.vmp.gb28181.session.SipInviteSessionManager;
 import com.genersoft.iot.vmp.gb28181.task.platformStatus.PlatformKeepaliveTask;
+import com.genersoft.iot.vmp.gb28181.task.platformStatus.PlatformRegisterResultManager;
 import com.genersoft.iot.vmp.gb28181.task.platformStatus.PlatformRegisterTask;
 import com.genersoft.iot.vmp.gb28181.task.platformStatus.PlatformRegisterTaskInfo;
+import com.genersoft.iot.vmp.gb28181.task.platformStatus.PlatformRegisterTester;
 import com.genersoft.iot.vmp.gb28181.task.platformStatus.PlatformStatusTaskRunner;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommanderForPlatform;
 import com.genersoft.iot.vmp.gb28181.utils.SipUtils;
@@ -114,6 +116,12 @@ public class PlatformServiceImpl implements IPlatformService {
     @Autowired
     private PlatformStatusTaskRunner statusTaskRunner;
 
+    @Autowired
+    private PlatformRegisterResultManager registerResultManager;
+
+    @Autowired
+    private PlatformRegisterTester platformRegisterTester;
+
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady(){
 
@@ -190,10 +198,17 @@ public class PlatformServiceImpl implements IPlatformService {
         try {
             commanderForPlatform.register(platform, sipTransactionInfo, eventResult -> {
                 log.info("[国标级联] {}（{}）,注册失败", platform.getName(), platform.getServerGBId());
+                // 保存明确的失败原因， 供页面直接展示， 不用去翻日志
+                registerResultManager.save(PlatformRegisterResult.fail(platform, PlatformRegisterResult.SOURCE_AUTO,
+                        PlatformRegisterResult.STAGE_REGISTER, eventResult.statusCode, eventResult.msg));
                 offline(platform);
             }, null);
         } catch (InvalidArgumentException | ParseException | SipException e) {
             log.error("[命令发送失败] 国标级联: {}", e.getMessage());
+            registerResultManager.save(PlatformRegisterResult.localFail(platform, PlatformRegisterResult.SOURCE_AUTO,
+                    "本地发送失败：" + e.getMessage(),
+                    String.format("请检查平台的[本地IP] %s 是否为本服务实际监听的IP, 以及信令传输模式(当前%s)配置",
+                            platform.getDeviceIp(), platform.getTransport())));
         }
     }
 
@@ -359,7 +374,26 @@ public class PlatformServiceImpl implements IPlatformService {
                     .replaceAll("_", "/_");
         }
         List<Platform> all = platformMapper.queryList(query);
+        if (!all.isEmpty()) {
+            // 带上最近一次的注册结果， 页面可以直接看到离线的具体原因
+            for (Platform platform : all) {
+                platform.setLastRegisterResult(registerResultManager.get(platform.getServerGBId()));
+            }
+        }
         return new PageInfo<>(all);
+    }
+
+    @Override
+    public PlatformRegisterResult testRegister(Integer id) {
+        Assert.notNull(id, "ID不可为空");
+        Platform platform = platformMapper.query(id);
+        Assert.notNull(platform, "平台不存在");
+        return platformRegisterTester.test(platform);
+    }
+
+    @Override
+    public PlatformRegisterResult getLastRegisterResult(String platformServerGBId) {
+        return registerResultManager.get(platformServerGBId);
     }
 
     @Override
@@ -471,6 +505,8 @@ public class PlatformServiceImpl implements IPlatformService {
                 }else {
                     // 心跳超时三次, 不再发送心跳， 平台离线
                     log.info("[国标级联] 心跳发送超时三次，平台离线， 平台服务编号： {}", platformServerId);
+                    registerResultManager.save(PlatformRegisterResult.keepaliveFail(platform, PlatformRegisterResult.SOURCE_AUTO,
+                            eventResult.statusCode, eventResult.msg));
                     offline(platform);
                 }
             }, eventResult -> {
@@ -485,9 +521,11 @@ public class PlatformServiceImpl implements IPlatformService {
                         this::keepaliveExpire);
                 keepaliveTask.setFailCount(failCount + 1);
                 statusTaskRunner.addKeepAliveTask(keepaliveTask);
-            }else {
+            } else {
                 // 心跳超时三次, 不再发送心跳， 平台离线
                 log.info("[国标级联] 心跳发送失败三次，平台离线， 平台服务编号： {}", platformServerId);
+                registerResultManager.save(PlatformRegisterResult.keepaliveFail(platform, PlatformRegisterResult.SOURCE_AUTO,
+                        0, e.getMessage()));
                 offline(platform);
             }
         }

@@ -50,6 +50,17 @@ export function getServerConfig() {
   })
 }
 
+export function testRegister(id) {
+  return request({
+    method: 'get',
+    url: `/api/platform/register/test`,
+    timeout: 30000,
+    params: {
+      id: id
+    }
+  })
+}
+
 export function query(params) {
   const { count, page, query } = params
   return request({

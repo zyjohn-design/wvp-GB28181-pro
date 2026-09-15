@@ -208,8 +208,9 @@ export default {
           .then(data => {
             this.$message({
               showClose: true,
-              message: '保存成功',
-              type: 'success'
+              message: '保存成功，注册是异步进行的，结果请查看列表中的“状态”，或点击“测试注册”立即验证',
+              type: 'success',
+              duration: 5000
             })
             if (this.closeEdit) {
               this.closeEdit()
@@ -226,8 +227,9 @@ export default {
           .then(data => {
             this.$message({
               showClose: true,
-              message: '保存成功',
-              type: 'success'
+              message: '保存成功，注册是异步进行的，结果请查看列表中的“状态”，或点击“测试注册”立即验证',
+              type: 'success',
+              duration: 5000
             })
             if (this.closeEdit) {
               this.closeEdit()

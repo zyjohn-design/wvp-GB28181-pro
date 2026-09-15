@@ -7,6 +7,7 @@ import {
   pushChannel,
   query,
   remove, removeChannel, removeChannelByDevice,
+  testRegister,
   update, updateCustomChannel
 } from '@/api/platform'
 
@@ -64,6 +65,16 @@ const actions = {
   getServerConfig({ commit }) {
     return new Promise((resolve, reject) => {
       getServerConfig().then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  testRegister({ commit }, id) {
+    return new Promise((resolve, reject) => {
+      testRegister(id).then(response => {
         const { data } = response
         resolve(data)
       }).catch(error => {

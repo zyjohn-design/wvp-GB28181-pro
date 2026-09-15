@@ -2,6 +2,7 @@ package com.genersoft.iot.vmp.gb28181.service;
 
 import com.genersoft.iot.vmp.gb28181.bean.CommonGBChannel;
 import com.genersoft.iot.vmp.gb28181.bean.Platform;
+import com.genersoft.iot.vmp.gb28181.bean.PlatformRegisterResult;
 import com.genersoft.iot.vmp.gb28181.bean.SipTransactionInfo;
 import com.genersoft.iot.vmp.gb28181.event.SipSubscribe;
 import com.genersoft.iot.vmp.media.bean.MediaServer;
@@ -35,6 +36,18 @@ public interface IPlatformService {
      * @param parentPlatform 级联平台
      */
     boolean add(Platform parentPlatform);
+
+    /**
+     * 立即发送一次真实的REGISTER, 用于测试上级平台的连通性与配置是否正确, 同步返回明确的结果
+     * @param id 平台的数据库ID
+     */
+    PlatformRegisterResult testRegister(Integer id);
+
+    /**
+     * 查询最近一次注册（或测试注册）的结果
+     * @param platformServerGBId 上级平台国标编号
+     */
+    PlatformRegisterResult getLastRegisterResult(String platformServerGBId);
 
     /**
      * 添加级联平台

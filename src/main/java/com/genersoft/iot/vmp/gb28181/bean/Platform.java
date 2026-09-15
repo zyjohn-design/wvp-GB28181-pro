@@ -130,4 +130,7 @@ public class Platform {
 
     @Schema(description = "执行注册的服务ID")
     private String serverId;
+
+    @Schema(description = "最近一次注册结果(不存储于数据库)")
+    private PlatformRegisterResult lastRegisterResult;
 }
