@@ -13,7 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 接收redis返回的推流结果
@@ -25,7 +26,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Component
 public class RedisPushStreamResponseListener implements MessageListener {
 
-    private ConcurrentLinkedQueue<Message> taskQueue = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<Message> taskQueue = new LinkedBlockingQueue<>(100_000);
 
 
     private final Map<String, PushStreamResponseEvent> responseEvents = new ConcurrentHashMap<>();

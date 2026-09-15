@@ -13,7 +13,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 接收来自redis的关闭流更新通知
@@ -27,7 +28,7 @@ public class RedisCloseStreamMsgListener implements MessageListener {
     @Autowired
     private IStreamPushService pushService;
 
-    private final ConcurrentLinkedQueue<Message> taskQueue = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<Message> taskQueue = new LinkedBlockingQueue<>(100_000);
 
     @Override
     public void onMessage(@NotNull Message message, byte[] bytes) {

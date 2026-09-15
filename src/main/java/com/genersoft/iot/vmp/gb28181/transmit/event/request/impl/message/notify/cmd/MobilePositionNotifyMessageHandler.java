@@ -22,7 +22,8 @@ import javax.sip.message.Response;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 移动设备位置数据通知，设备主动发起，不需要上级订阅
@@ -34,7 +35,7 @@ public class MobilePositionNotifyMessageHandler extends SIPRequestProcessorParen
 
     private final NotifyMessageHandler notifyMessageHandler;
 
-    private final ConcurrentLinkedQueue<HandlerCatchData> taskQueue = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<HandlerCatchData> taskQueue = new LinkedBlockingQueue<>(100_000);
 
     private final EventPublisher eventPublisher;
 

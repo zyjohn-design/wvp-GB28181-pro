@@ -31,7 +31,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * SIP命令类型： NOTIFY请求中的目录请求处理
@@ -40,9 +41,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Component
 public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent {
 
-    private final ConcurrentLinkedQueue<NotifyCatalogChannel> channelList = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<NotifyCatalogChannel> channelList = new LinkedBlockingQueue<>(100_000);
 
-	private final ConcurrentLinkedQueue<HandlerCatchData> taskQueue = new ConcurrentLinkedQueue<>();
+	private final BlockingQueue<HandlerCatchData> taskQueue = new LinkedBlockingQueue<>(100_000);
 
 	@Autowired
 	private UserSetting userSetting;
@@ -155,7 +156,7 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
 								// 上线
 								log.info("[收到通道上线通知] 来自设备: {}, 通道 {}", device.getDeviceId(), catalogChannelEvent.getChannel().getDeviceId());
 								channel.setStatus("ON");
-								channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.STATUS_CHANGED, channel, device.getDeviceId()));
+								channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.STATUS_CHANGED, channel, device.getDeviceId()));
 
 								if (userSetting.getDeviceStatusNotify()) {
 									// 发送redis消息
@@ -169,7 +170,7 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
 									log.info("[收到通道离线通知] 但是平台已配置拒绝此消息，来自设备: {}, 通道 {}", device.getDeviceId(), catalogChannelEvent.getChannel().getDeviceId());
 								} else {
 									channel.setStatus("OFF");
-									channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.STATUS_CHANGED, channel, device.getDeviceId()));
+									channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.STATUS_CHANGED, channel, device.getDeviceId()));
 									if (userSetting.getDeviceStatusNotify()) {
 										// 发送redis消息
 										redisCatchStorage.sendDeviceOrChannelStatus(device.getDeviceId(), catalogChannelEvent.getChannel().getDeviceId(), false);
@@ -183,7 +184,7 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
 									log.info("[收到通道视频丢失通知] 但是平台已配置拒绝此消息，来自设备: {}, 通道 {}", device.getDeviceId(), catalogChannelEvent.getChannel().getDeviceId());
 								} else {
 									channel.setStatus("OFF");
-									channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.STATUS_CHANGED, channel, device.getDeviceId()));
+									channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.STATUS_CHANGED, channel, device.getDeviceId()));
 
 									if (userSetting.getDeviceStatusNotify()) {
 										// 发送redis消息
@@ -198,7 +199,7 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
 									log.info("[收到通道视频故障通知] 但是平台已配置拒绝此消息，来自设备: {}, 通道 {}", device.getDeviceId(), catalogChannelEvent.getChannel().getDeviceId());
 								} else {
 									channel.setStatus("OFF");
-									channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.STATUS_CHANGED, channel, device.getDeviceId()));
+									channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.STATUS_CHANGED, channel, device.getDeviceId()));
 
 									if (userSetting.getDeviceStatusNotify()) {
 										// 发送redis消息
@@ -216,12 +217,12 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
 									channel.setId(deviceChannel.getId());
 									channel.setHasAudio(deviceChannel.isHasAudio());
 									channel.setUpdateTime(DateUtil.getNow());
-									channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.UPDATE, channel, device.getDeviceId()));
+									channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.UPDATE, channel, device.getDeviceId()));
 
 								} else {
 									catalogChannelEvent.getChannel().setUpdateTime(DateUtil.getNow());
 									catalogChannelEvent.getChannel().setCreateTime(DateUtil.getNow());
-									channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.ADD, channel, device.getDeviceId()));
+									channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.ADD, channel, device.getDeviceId()));
 
 									if (userSetting.getDeviceStatusNotify()) {
 										// 发送redis消息
@@ -233,7 +234,7 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
 							case CatalogEvent.DEL:
 								// 删除
 								log.info("[收到删除通道通知] 来自设备: {}, 通道 {}", device.getDeviceId(), catalogChannelEvent.getChannel().getDeviceId());
-								channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.DELETE, channel, device.getDeviceId()));
+								channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.DELETE, channel, device.getDeviceId()));
 
 								if (userSetting.getDeviceStatusNotify()) {
 									// 发送redis消息
@@ -250,12 +251,12 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
 									channel.setHasAudio(deviceChannelForUpdate.isHasAudio());
 									channel.setUpdateTime(DateUtil.getNow());
 									channel.setUpdateTime(DateUtil.getNow());
-									channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.UPDATE, channel, device.getDeviceId()));
+									channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.UPDATE, channel, device.getDeviceId()));
 
 								} else {
 									catalogChannelEvent.getChannel().setCreateTime(DateUtil.getNow());
 									catalogChannelEvent.getChannel().setUpdateTime(DateUtil.getNow());
-									channelList.add(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.ADD, channel, device.getDeviceId()));
+									channelList.offer(NotifyCatalogChannel.getInstance(NotifyCatalogChannel.Type.ADD, channel, device.getDeviceId()));
 
 									if (userSetting.getDeviceStatusNotify()) {
 										// 发送redis消息

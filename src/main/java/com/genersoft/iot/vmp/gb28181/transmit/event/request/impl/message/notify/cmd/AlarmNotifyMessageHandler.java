@@ -27,7 +27,8 @@ import javax.sip.message.Response;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 报警事件的处理，参考：9.4
@@ -56,7 +57,7 @@ public class AlarmNotifyMessageHandler extends SIPRequestProcessorParent impleme
     @Autowired
     private IDeviceChannelService deviceChannelService;
 
-    private final ConcurrentLinkedQueue<SipMsgInfo> taskQueue = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<SipMsgInfo> taskQueue = new LinkedBlockingQueue<>(100_000);
 
     @Override
     public void afterPropertiesSet() throws Exception {

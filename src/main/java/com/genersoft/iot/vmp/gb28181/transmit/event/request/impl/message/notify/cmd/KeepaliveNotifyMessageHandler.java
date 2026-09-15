@@ -25,6 +25,8 @@ import javax.sip.RequestEvent;
 import javax.sip.SipException;
 import javax.sip.message.Response;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -39,7 +41,9 @@ public class KeepaliveNotifyMessageHandler extends SIPRequestProcessorParent imp
 
     private final static String cmdType = "Keepalive";
 
-    private final BlockingQueue<Device> taskQueue = new LinkedBlockingQueue<>();
+    private static final int MAX_QUEUE_SIZE = 100_000;
+
+    private final BlockingQueue<Device> taskQueue = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
 
     @Autowired
     private NotifyMessageHandler notifyMessageHandler;
@@ -69,7 +73,9 @@ public class KeepaliveNotifyMessageHandler extends SIPRequestProcessorParent imp
         } catch (SipException | InvalidArgumentException | ParseException e) {
             log.error("[命令发送失败] 心跳回复: {}", e.getMessage());
         }
-        taskQueue.add(device);
+        if (!taskQueue.offer(device)) {
+            log.warn("心跳待处理队列已满，丢弃本次缓存更新，deviceId={}", device.getDeviceId());
+        }
         SIPRequest request = (SIPRequest) evt.getRequest();
 
         RemoteAddressInfo remoteAddressInfo = SipUtils.getRemoteAddressFromRequest(request, userSetting.getSipUseSourceIpAsRemoteAddress());
@@ -95,12 +101,20 @@ public class KeepaliveNotifyMessageHandler extends SIPRequestProcessorParent imp
     @Scheduled(fixedDelay = 10, timeUnit = TimeUnit.SECONDS)
     public void executeUpdateDeviceList() {
         log.debug("[定时任务] 更新心跳记录，待处理设备数量: {}", taskQueue.size());
+        List<Device> devices = new ArrayList<>(Math.min(taskQueue.size(), 10_000));
         try {
             if (!taskQueue.isEmpty()) {
-                redisCatchStorage.updateDeviceKeepaliveTimeStamp(taskQueue.stream().toList());
-                taskQueue.clear();
+                taskQueue.drainTo(devices, 10_000);
+                if (!devices.isEmpty()) {
+                    redisCatchStorage.updateDeviceKeepaliveTimeStamp(devices);
+                }
             }
         } catch (Exception e) {
+            for (Device device : devices) {
+                if (!taskQueue.offer(device)) {
+                    log.warn("心跳待处理队列已满，重试数据未能重新入队，deviceId={}", device.getDeviceId());
+                }
+            }
             log.error("[定时任务] 更新心跳记录 执行异常", e);
         }
     }

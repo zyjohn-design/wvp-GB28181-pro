@@ -17,7 +17,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -37,7 +38,7 @@ public class RedisGpsMsgListener implements MessageListener {
 
     private final IGbChannelService channelService;
 
-    private final ConcurrentLinkedQueue<Message> taskQueue = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<Message> taskQueue = new LinkedBlockingQueue<>(100_000);
 
 
     @Override

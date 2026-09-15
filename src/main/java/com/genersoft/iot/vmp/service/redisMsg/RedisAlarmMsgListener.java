@@ -28,7 +28,8 @@ import javax.sip.SipException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 监听 SUBSCRIBE alarm_receive
@@ -59,7 +60,7 @@ public class RedisAlarmMsgListener implements MessageListener {
     @Autowired
     private IPlatformChannelService platformChannelService;
 
-    private final ConcurrentLinkedQueue<Message> taskQueue = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<Message> taskQueue = new LinkedBlockingQueue<>(100_000);
 
     @Autowired
     private UserSetting userSetting;
@@ -177,4 +178,3 @@ public class RedisAlarmMsgListener implements MessageListener {
         }
     }
 }
-

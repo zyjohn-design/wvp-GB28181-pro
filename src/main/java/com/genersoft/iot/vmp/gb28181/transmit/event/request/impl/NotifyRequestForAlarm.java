@@ -20,7 +20,8 @@ import javax.sip.RequestEvent;
 import javax.sip.header.FromHeader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * SIP命令类型： NOTIFY请求中的报警通知请求处理
@@ -29,7 +30,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Component
 public class NotifyRequestForAlarm extends SIPRequestProcessorParent {
 
-	private final ConcurrentLinkedQueue<HandlerCatchData> taskQueue = new ConcurrentLinkedQueue<>();
+	private final BlockingQueue<HandlerCatchData> taskQueue = new LinkedBlockingQueue<>(100_000);
 
 	@Autowired
 	private UserSetting userSetting;

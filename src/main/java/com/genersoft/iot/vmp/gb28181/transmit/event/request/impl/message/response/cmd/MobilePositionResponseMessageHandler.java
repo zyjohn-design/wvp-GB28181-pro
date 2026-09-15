@@ -27,7 +27,8 @@ import javax.sip.message.Response;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 移动设备位置数据查询回复
@@ -48,7 +49,7 @@ public class MobilePositionResponseMessageHandler extends SIPRequestProcessorPar
 
     private final DeferredResultHolder resultHolder;
 
-    private final ConcurrentLinkedQueue<HandlerCatchData> taskQueue = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<HandlerCatchData> taskQueue = new LinkedBlockingQueue<>(100_000);
 
     @Override
     public void afterPropertiesSet() throws Exception {

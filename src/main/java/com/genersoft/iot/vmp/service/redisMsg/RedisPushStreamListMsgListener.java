@@ -19,7 +19,8 @@ import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @Auther: JiangFeng
@@ -44,7 +45,7 @@ public class RedisPushStreamListMsgListener implements MessageListener {
     @Resource
     private UserSetting userSetting;
 
-    private final ConcurrentLinkedQueue<Message> taskQueue = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<Message> taskQueue = new LinkedBlockingQueue<>(100_000);
 
     @Override
     public void onMessage(Message message, byte[] bytes) {
