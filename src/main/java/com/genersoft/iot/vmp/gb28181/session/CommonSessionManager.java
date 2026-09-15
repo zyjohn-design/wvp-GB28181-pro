@@ -4,9 +4,9 @@ import com.genersoft.iot.vmp.common.CommonCallback;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.Calendar;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 通用回调管理
@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class CommonSessionManager {
 
-    public static Map<String, CommonSession> callbackMap = new ConcurrentHashMap<>();
+    private final Map<String, CommonSession> callbackMap = new ConcurrentHashMap<>();
 
     /**
      * 存储回调相关的信息
@@ -54,11 +54,8 @@ public class CommonSessionManager {
     }
 
     public CommonCallback<Object> get(String sessionId, boolean destroy) {
-        CommonSession commonSession = callbackMap.get(sessionId);
-        if (destroy) {
-            callbackMap.remove(sessionId);
-        }
-        return commonSession.callback;
+        CommonSession commonSession = destroy ? callbackMap.remove(sessionId) : callbackMap.get(sessionId);
+        return commonSession == null ? null : commonSession.callback;
     }
 
     public CommonCallback<Object> get(String sessionId) {
@@ -69,21 +66,21 @@ public class CommonSessionManager {
         callbackMap.remove(sessionID);
     }
 
-    @Scheduled(fixedRate= 60)   //每分钟执行一次
+    @Scheduled(fixedDelay = 1, timeUnit = TimeUnit.MINUTES)
     public void execute(){
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.MINUTE, -1);
+        long now = System.currentTimeMillis();
         for (Map.Entry<String, CommonSession> entry : callbackMap.entrySet()) {
             CommonSession session = entry.getValue();
             if (session == null) {
                 continue;
             }
-            if (session.createTime < cal.getTimeInMillis()) {
+            long timeoutMillis = TimeUnit.MINUTES.toMillis(Math.max(1, session.timeout));
+            if (now - session.createTime >= timeoutMillis
+                    && callbackMap.remove(entry.getKey(), session)) {
                 // 超时
                 if (session.timeoutCallback != null) {
                     session.timeoutCallback.run("timeout");
                 }
-                callbackMap.remove(entry.getKey());
             }
         }
     }
