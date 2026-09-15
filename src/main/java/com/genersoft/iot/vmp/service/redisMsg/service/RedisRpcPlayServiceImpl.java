@@ -67,7 +67,7 @@ public class RedisRpcPlayServiceImpl implements IRedisRpcPlayService {
         jsonObject.put("inviteSessionType", type);
         RedisRpcRequest request = buildRequest("channel/stop", jsonObject.toJSONString());
         request.setToId(serverId);
-        RedisRpcResponse response = redisRpcConfig.request(request, 50, TimeUnit.MICROSECONDS);
+        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.MILLISECONDS);
         if (response == null) {
             throw new ControllerException(ErrorCode.ERROR100.getCode(), ErrorCode.ERROR100.getMsg());
         }else {
@@ -198,7 +198,7 @@ public class RedisRpcPlayServiceImpl implements IRedisRpcPlayService {
         jsonObject.put("id", id);
         RedisRpcRequest request = buildRequest("streamPush/play", jsonObject);
         request.setToId(serverId);
-        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.SECONDS);
+        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.MILLISECONDS);
         if (response == null) {
             callback.run(ErrorCode.ERROR100.getCode(), ErrorCode.ERROR100.getMsg(), null);
         }else {
@@ -215,7 +215,7 @@ public class RedisRpcPlayServiceImpl implements IRedisRpcPlayService {
     public void playProxy(String serverId, int id, ErrorCallback<StreamInfo> callback) {
         RedisRpcRequest request = buildRequest("streamProxy/play", id);
         request.setToId(serverId);
-        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.SECONDS);
+        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.MILLISECONDS);
         if (response == null) {
             callback.run(ErrorCode.ERROR100.getCode(), ErrorCode.ERROR100.getMsg(), null);
         }else {
@@ -231,7 +231,8 @@ public class RedisRpcPlayServiceImpl implements IRedisRpcPlayService {
     @Override
     public void stopProxy(String serverId, int id) {
         RedisRpcRequest request = buildRequest("streamProxy/stop", id);
-        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.SECONDS);
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.MILLISECONDS);
         if (response != null && response.getStatusCode() == ErrorCode.SUCCESS.getCode()) {
             log.info("[rpc 拉流代理] 停止成功： id: {}", id);
         }else {
@@ -242,7 +243,8 @@ public class RedisRpcPlayServiceImpl implements IRedisRpcPlayService {
     @Override
     public DownloadFileInfo getRecordPlayUrl(String serverId, Integer recordId) {
         RedisRpcRequest request = buildRequest("cloudRecord/play", recordId);
-        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.SECONDS);
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.MILLISECONDS);
         if (response != null && response.getStatusCode() == ErrorCode.SUCCESS.getCode()) {
             return JSON.parseObject(response.getBody().toString(), DownloadFileInfo.class);
         }
@@ -257,11 +259,10 @@ public class RedisRpcPlayServiceImpl implements IRedisRpcPlayService {
         jsonObject.put("broadcastMode", broadcastMode);
         RedisRpcRequest request = buildRequest("devicePlay/audioBroadcast", jsonObject.toString());
         request.setToId(serverId);
-        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.SECONDS);
+        RedisRpcResponse response = redisRpcConfig.request(request, userSetting.getPlayTimeout(), TimeUnit.MILLISECONDS);
         if (response != null && response.getStatusCode() == ErrorCode.SUCCESS.getCode()) {
             return JSON.parseObject(response.getBody().toString(), AudioBroadcastResult.class);
         }
         return null;
     }
 }
-

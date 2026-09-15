@@ -84,8 +84,8 @@ public class RedisRpcRequest {
 
     public RedisRpcResponse getResponse() {
         RedisRpcResponse response = new RedisRpcResponse();
-        response.setFromId(fromId);
-        response.setToId(toId);
+        response.setFromId(toId);
+        response.setToId(fromId);
         response.setSn(sn);
         response.setUri(uri);
         return response;

@@ -47,7 +47,7 @@ public class RedisRpcPlatformController extends RpcController {
 
     private void sendResponse(RedisRpcResponse response){
         log.info("[redis-rpc] >> {}", response);
-        response.setToId(userSetting.getServerId());
+        response.setFromId(userSetting.getServerId());
         RedisRpcMessage message = new RedisRpcMessage();
         message.setResponse(response);
         redisTemplate.convertAndSend(RedisRpcConfig.REDIS_REQUEST_CHANNEL_KEY, message);
