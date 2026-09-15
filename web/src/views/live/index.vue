@@ -7,25 +7,42 @@
       <div class="video-container">
         <div class="control-bar">
           <div class="split-controls">
-            <i :class="['btn', 'sidebar-toggle', sidebarVisible ? 'el-icon-s-fold' : 'el-icon-s-unfold']" title="切换侧边栏" @click="toggleSidebar" />
+            <button class="icon-button sidebar-toggle" type="button" title="切换设备列表" @click="toggleSidebar">
+              <i :class="sidebarVisible ? 'el-icon-s-fold' : 'el-icon-s-unfold'" />
+            </button>
             <span class="divider" />
-            分屏:
-            <i class="iconfont icon-a-mti-1fenpingshi btn" :class="{active:spiltIndex === 0}" @click="spiltIndex=0" />
-            <i class="iconfont icon-a-mti-4fenpingshi btn" :class="{active: spiltIndex === 1}" @click="spiltIndex=1" />
-            <i class="iconfont icon-a-mti-6fenpingshi btn" :class="{active: spiltIndex === 2}" @click="spiltIndex=2" />
-            <i class="iconfont icon-a-mti-9fenpingshi btn" :class="{active: spiltIndex === 3}" @click="spiltIndex=3" />
+            <span class="control-label">画面布局</span>
+            <button
+              v-for="option in splitOptions"
+              :key="option.value"
+              class="split-button"
+              :class="{ active: spiltIndex === option.value }"
+              type="button"
+              :title="option.label + ' 分屏'"
+              :aria-label="option.label + ' 分屏'"
+              @click="spiltIndex = option.value"
+            >
+              <span class="split-glyph" :class="'split-glyph-' + option.label">
+                <span v-for="cell in option.cells" :key="cell" />
+              </span>
+              <span>{{ option.label }}</span>
+            </button>
           </div>
           <div class="global-player-control">
-            播放器:
-            <el-select v-model="globalPlayer" size="mini" style="width: 120px">
+            <span class="control-label">播放器</span>
+            <el-select v-model="globalPlayer" size="mini" class="player-select">
               <el-option label="Jessibuca" value="jessibuca" />
               <el-option label="WebRTC" value="webRTC" />
               <el-option label="H265web" value="h265web" />
             </el-select>
           </div>
           <div class="fullscreen-control">
-            <i class="el-icon-full-screen btn" @click="fullScreen()" />
-            <i class="iconfont icon-PTZ btn" title="云台控制" @click="togglePtzPanel" />
+            <button class="action-button" type="button" title="全屏播放" @click="fullScreen()">
+              <i class="el-icon-full-screen" /><span>全屏</span>
+            </button>
+            <button class="action-button" :class="{ active: ptzVisible }" type="button" title="云台控制" @click="togglePtzPanel">
+              <i class="el-icon-s-operation" /><span>云台</span>
+            </button>
           </div>
         </div>
         <div class="player-container">
@@ -93,6 +110,12 @@ export default {
       streamInfo: [null],
       videoTip: [''],
       globalPlayer: 'jessibuca',
+      splitOptions: [
+        { value: 0, label: '1', cells: 1 },
+        { value: 1, label: '4', cells: 4 },
+        { value: 2, label: '6', cells: 6 },
+        { value: 3, label: '9', cells: 9 }
+      ],
       sidebarVisible: true, // 侧边栏
       ptzVisible: false, // 云台面板
       currentChannelId: null, // 当前选中通道
@@ -149,8 +172,8 @@ export default {
         display: 'grid',
         gridTemplateColumns: this.layout[this.spiltIndex].columns,
         gridTemplateRows: this.layout[this.spiltIndex].rows,
-        gap: '4px',
-        backgroundColor: '#a9a8a8'
+        gap: '3px',
+        backgroundColor: '#1f2937'
       }
     }
   },
@@ -255,7 +278,7 @@ export default {
       }
       return classStr
     },
-    contextMenuEvent: function(device, event, data, isCatalog) {
+    contextMenuEvent: function() {
 
     },
     // 通知设备上传媒体流
@@ -316,26 +339,32 @@ export default {
   }
 }
 </script>
-<style>
+<style scoped>
 .live-container {
-  height: calc(100vh - 124px);
+  height: calc(100vh - 64px);
   width: 100%;
+  padding: 18px;
+  background: #f3f4f6;
 }
 
 .live-content {
   height: 100%;
   display: flex;
   flex-direction: row;
+  gap: 16px;
 }
 
 .device-tree-container-box {
-  width: 406px;
-  min-width: 250px;
-  max-width: 400px;
+  width: 320px;
+  min-width: 260px;
+  max-width: 420px;
   background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
   overflow: auto;
   resize: horizontal;
-  transition: width 0.3s ease, min-width 0.3s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: width 150ms ease-out, min-width 150ms ease-out, opacity 150ms ease-out;
 }
 
 .device-tree-hidden {
@@ -343,6 +372,8 @@ export default {
   min-width: 0 !important;
   overflow: hidden;
   resize: none;
+  border: 0;
+  opacity: 0;
 }
 
 @media (max-width: 768px) {
@@ -365,25 +396,33 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .control-bar {
-  height: 5vh;
-  min-height: 40px;
+  min-height: 62px;
+  padding: 0 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 17px;
+  gap: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 14px;
 }
 
 .split-controls {
-  text-align: left;
-  padding-left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .fullscreen-control {
-  text-align: right;
-  padding-right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .ptz-toggle-control {
@@ -396,33 +435,38 @@ export default {
 }
 
 .ptz-panel {
-  width: 406px;
+  width: 360px;
   min-width: 340px;
   background-color: #ffffff;
-  border-left: 1px solid #e4e7ed;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .ptz-panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 17px 18px;
+  border-bottom: 1px solid #e5e7eb;
   font-size: 15px;
-  font-weight: bold;
+  color: #111827;
+  font-weight: 650;
 }
 
 .ptz-panel-header .el-icon-close {
   cursor: pointer;
   font-size: 18px;
-  color: #909399;
+  color: #9ca3af;
+  transition: color 150ms ease-out, transform 150ms ease-out;
 }
 
 .ptz-panel-header .el-icon-close:hover {
-  color: #409EFF;
+  color: #4f46e5;
+  transform: rotate(90deg);
 }
 
 .ptz-panel-body {
@@ -430,7 +474,7 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 12px 16px;
+  padding: 16px 18px;
 }
 
 .ptz-preset-section {
@@ -446,10 +490,10 @@ export default {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: #374151;
   margin-bottom: 10px;
   padding-bottom: 6px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .ptz-divider {
@@ -463,7 +507,7 @@ export default {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #909399;
+  color: #9ca3af;
   font-size: 14px;
 }
 
@@ -474,57 +518,179 @@ export default {
   font-size: 14px;
 }
 
+.control-label {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.player-select {
+  width: 122px;
+}
+
 .player-container {
   flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 10px;
+  padding: 12px;
   overflow: hidden;
+  background: #f9fafb;
 }
 
 .play-grid {
   width: 100%;
   height: 100%;
-  max-height: calc(100vh - 180px);
+  max-height: calc(100vh - 202px);
   aspect-ratio: 16/9;
-  border: 4px solid rgb(169, 168, 168);
+  border: 3px solid #1f2937;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.btn {
-  margin: 0 10px;
+.icon-button,
+.split-button,
+.action-button {
+  font-family: inherit;
   cursor: pointer;
+  transition: color 150ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out, transform 150ms ease-out;
 }
 
-.btn:hover {
-  color: #409EFF;
+.icon-button:active,
+.split-button:active,
+.action-button:active {
+  transform: scale(0.97);
 }
 
-.btn.active {
-  color: #409EFF;
+.icon-button:focus-visible,
+.split-button:focus-visible,
+.action-button:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 2px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: #6b7280;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+}
+
+.icon-button:hover {
+  color: #4f46e5;
+  background: #eef2ff;
+  border-color: #c7d2fe;
 }
 
 .sidebar-toggle {
-  margin: 0 2px;
-  font-size: 18px;
-  vertical-align: middle;
+  flex: 0 0 auto;
+  font-size: 16px;
 }
 
 .divider {
   display: inline-block;
   width: 1px;
   height: 16px;
-  background-color: #dcdfe6;
-  margin: 0 8px;
+  background-color: #e5e7eb;
+  margin: 0 5px;
   vertical-align: middle;
 }
 
+.split-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 9px;
+  color: #6b7280;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.split-button:hover {
+  color: #4f46e5;
+  border-color: #a5b4fc;
+}
+
+.split-button.active {
+  color: #4338ca;
+  background: #eef2ff;
+  border-color: #a5b4fc;
+}
+
+.split-glyph {
+  display: grid;
+  width: 16px;
+  height: 14px;
+  gap: 1px;
+}
+
+.split-glyph > span {
+  min-width: 0;
+  min-height: 0;
+  background: currentColor;
+  border-radius: 1px;
+  opacity: 0.82;
+}
+
+.split-glyph-1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.split-glyph-4 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.split-glyph-6 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.split-glyph-9 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+.action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  color: #4b5563;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.action-button:hover,
+.action-button.active {
+  color: #4338ca;
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
 .redborder {
-  outline: 4px solid rgb(0, 198, 255);
+  position: relative;
+  z-index: 1;
+  box-shadow: inset 0 0 0 3px #6366f1;
 }
 
 .play-box {
-  background-color: #000000;
+  background-color: #0f172a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -532,9 +698,10 @@ export default {
 }
 
 .no-signal {
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: bold;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .play-box-2-1 {
@@ -544,20 +711,35 @@ export default {
 
 /* Responsive adjustments for smaller screens */
 @media (max-width: 576px) {
+  .live-container {
+    height: auto;
+    min-height: calc(100vh - 64px);
+    padding: 10px;
+  }
+
   .control-bar {
     flex-direction: column;
     height: auto;
-    padding: 5px 0;
+    align-items: stretch;
+    padding: 10px;
   }
 
   .split-controls, .fullscreen-control {
     width: 100%;
-    text-align: center;
-    padding: 5px 0;
+    justify-content: center;
   }
 
-  .btn {
-    margin: 0 5px;
+  .global-player-control {
+    justify-content: center;
+  }
+
+  .control-label,
+  .divider {
+    display: none;
+  }
+
+  .split-button {
+    padding: 0 7px;
   }
 }
 

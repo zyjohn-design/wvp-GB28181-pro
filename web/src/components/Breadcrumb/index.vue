@@ -33,7 +33,7 @@ export default {
       const first = matched[0]
 
       if (!this.isDashboard(first)) {
-        matched = [{ path: '/dashboard', meta: { title: '控制台' }}].concat(matched)
+        matched = [{ path: '/dashboard', meta: { title: '控制台' } }].concat(matched)
       }
 
       this.levelList = matched.filter(item => item.meta && item.meta.title && item.meta.breadcrumb !== false)
@@ -67,11 +67,22 @@ export default {
 .app-breadcrumb.el-breadcrumb {
   display: inline-block;
   font-size: 14px;
-  line-height: 50px;
-  margin-left: 8px;
+  line-height: 64px;
+  margin-left: 10px;
+
+  a {
+    color: #6b7280;
+    font-weight: 500;
+    transition: color 150ms ease-out;
+
+    &:hover {
+      color: #4f46e5;
+    }
+  }
 
   .no-redirect {
-    color: #97a8be;
+    color: #111827;
+    font-weight: 600;
     cursor: text;
   }
 }

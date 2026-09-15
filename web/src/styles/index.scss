@@ -7,10 +7,13 @@
 
 body {
   height: 100%;
+  margin: 0;
+  color: #111827;
+  background: #f3f4f6;
   -moz-osx-font-smoothing: grayscale;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  font-family: Helvetica Neue, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Arial, sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
 
 label {
@@ -62,7 +65,129 @@ div:focus {
 
 // main-container global css
 .app-container {
-  padding: 20px;
+  padding: 24px;
+}
+
+// Shared dashboard surfaces. Keep page content quiet and let data lead.
+.el-button {
+  border-radius: 7px;
+  font-weight: 500;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out;
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.45);
+    outline-offset: 2px;
+  }
+}
+
+.el-button--primary {
+  border-color: #6366f1;
+  background: #6366f1;
+
+  &:hover,
+  &:focus {
+    border-color: #4f46e5;
+    background: #4f46e5;
+    box-shadow: 0 6px 14px rgba(79, 70, 229, 0.2);
+  }
+}
+
+.el-button--text {
+  color: #4f46e5;
+}
+
+.el-input__inner,
+.el-textarea__inner,
+.el-select .el-input__inner {
+  border-color: #d1d5db;
+  border-radius: 7px;
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+
+  &:hover {
+    border-color: #9ca3af;
+  }
+
+  &:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  }
+}
+
+.el-table {
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+
+  th {
+    color: #6b7280;
+    background: #f9fafb !important;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  td,
+  th.is-leaf {
+    border-bottom-color: #e5e7eb;
+  }
+
+  .el-table__row {
+    transition: background-color 150ms ease-out;
+  }
+
+  .el-table__row:hover > td {
+    background: #f9fafb !important;
+  }
+}
+
+.el-dialog {
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
+
+  .el-dialog__header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .el-dialog__title {
+    color: #111827;
+    font-size: 17px;
+    font-weight: 650;
+  }
+
+  .el-dialog__body {
+    padding: 22px 24px;
+  }
+}
+
+.el-card {
+  border-color: #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.el-pagination.is-background .el-pager li:not(.disabled).active {
+  background-color: #6366f1;
+}
+
+.el-tabs__active-bar {
+  background-color: #6366f1;
+}
+
+.el-tabs__item.is-active,
+.el-tabs__item:hover {
+  color: #4f46e5;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    padding: 16px;
+  }
 }
 
 .iconfont-14 {

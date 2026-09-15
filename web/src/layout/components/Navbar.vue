@@ -7,7 +7,11 @@
     <div class="right-menu">
       <el-dropdown class="avatar-container" trigger="click">
         <div class="avatar-wrapper">
-          欢迎，{{ name }}
+          <span class="user-avatar">{{ avatarText }}</span>
+          <span class="user-copy">
+            <strong>{{ name || '管理员' }}</strong>
+            <small>平台管理员</small>
+          </span>
           <i class="el-icon-caret-bottom" />
         </div>
         <el-dropdown-menu slot="dropdown" class="user-dropdown">
@@ -40,7 +44,10 @@ export default {
     ...mapGetters([
       'sidebar',
       'name'
-    ])
+    ]),
+    avatarText() {
+      return (this.name || '管').trim().slice(0, 1).toUpperCase()
+    }
   },
   methods: {
     toggleSideBar() {
@@ -60,22 +67,24 @@ export default {
 
 <style lang="scss" scoped>
 .navbar {
-  height: 50px;
+  height: 64px;
   overflow: hidden;
   position: relative;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(0,21,41,.08);
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: none;
 
   .hamburger-container {
-    line-height: 46px;
+    line-height: 60px;
     height: 100%;
     float: left;
     cursor: pointer;
-    transition: background .3s;
+    transition: background-color 150ms ease-out, color 150ms ease-out;
     -webkit-tap-highlight-color:transparent;
 
     &:hover {
-      background: rgba(0, 0, 0, .025)
+      color: #4f46e5;
+      background: #f5f3ff;
     }
   }
 
@@ -86,7 +95,7 @@ export default {
   .right-menu {
     float: right;
     height: 100%;
-    line-height: 50px;
+    line-height: 64px;
 
     &:focus {
       outline: none;
@@ -111,24 +120,65 @@ export default {
     }
 
     .avatar-container {
-      margin-right: 30px;
+      height: 100%;
+      margin-right: 22px;
 
       .avatar-wrapper {
-        margin-top: 5px;
+        height: 100%;
         position: relative;
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 24px 0 10px;
+        border-radius: 8px;
+        transition: background-color 150ms ease-out;
+
+        &:hover {
+          background: #f9fafb;
+        }
+
         .user-avatar {
-          cursor: pointer;
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 34px;
+          height: 34px;
+          border-radius: 9px;
+          color: #4338ca;
+          background: #eef2ff;
+          font-size: 14px;
+          font-weight: 700;
+          line-height: 34px;
+        }
+
+        .user-copy {
+          display: flex;
+          flex-direction: column;
+          line-height: 1.25;
+          color: #111827;
+
+          strong {
+            max-width: 120px;
+            overflow: hidden;
+            font-size: 13px;
+            font-weight: 600;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          small {
+            margin-top: 2px;
+            color: #9ca3af;
+            font-size: 11px;
+          }
         }
 
         .el-icon-caret-bottom {
           cursor: pointer;
           position: absolute;
-          right: -20px;
-          top: 19px;
+          right: 7px;
+          top: 26px;
           font-size: 12px;
         }
       }

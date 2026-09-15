@@ -6,14 +6,13 @@
       <div :class="{'fixed-header':fixedHeader}">
         <navbar />
       </div>
-      <tags-View />
       <app-main />
     </div>
   </div>
 </template>
 
 <script>
-import { Navbar, Sidebar, AppMain, TagsView } from './components'
+import { Navbar, Sidebar, AppMain } from './components'
 import ResizeMixin from './mixin/ResizeHandler'
 
 export default {
@@ -21,8 +20,7 @@ export default {
   components: {
     Navbar,
     Sidebar,
-    AppMain,
-    TagsView
+    AppMain
   },
   mixins: [ResizeMixin],
   computed: {
@@ -67,8 +65,8 @@ export default {
     }
   }
   .drawer-bg {
-    background: #000;
-    opacity: 0.3;
+    background: #0f172a;
+    opacity: 0.42;
     width: 100%;
     top: 0;
     height: 100%;
