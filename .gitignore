@@ -41,3 +41,8 @@ certificates
 /deploy/traffic-command/logs/
 /deploy/traffic-command/images/*.tar
 /deploy/traffic-command/images/*.tar.gz
+# 发布/增量升级包（tar.gz、sha256 校验文件、解包后的目录）体积大且可重新构建，不入版本库。
+/deploy/traffic-command/releases/
+
+# macOS 目录属性文件
+.DS_Store
