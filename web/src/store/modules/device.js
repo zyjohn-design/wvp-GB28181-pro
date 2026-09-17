@@ -1,7 +1,7 @@
 import {
   add,
   changeChannelAudio,
-  deleteDevice,
+  deleteDevice, deleteRegisterAttempt,
   deviceRecord, getKeepaliveTimeStatistics, getRegisterTimeStatistics,
   homePosition,
   queryBasicParam,
@@ -12,7 +12,7 @@ import {
   queryDevices,
   queryDeviceSyncStatus,
   queryDeviceTree,
-  queryHasStreamChannels,
+  queryHasStreamChannels, queryRegisterAttempts,
   resetAlarm,
   resetGuard,
   setBasicParam,
@@ -40,6 +40,26 @@ const actions = {
   queryDevices({ commit }, params) {
     return new Promise((resolve, reject) => {
       queryDevices(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  queryRegisterAttempts({ commit }) {
+    return new Promise((resolve, reject) => {
+      queryRegisterAttempts().then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  deleteRegisterAttempt({ commit }, deviceId) {
+    return new Promise((resolve, reject) => {
+      deleteRegisterAttempt(deviceId).then(response => {
         const { data } = response
         resolve(data)
       }).catch(error => {
@@ -333,4 +353,3 @@ export default {
   namespaced: true,
   actions
 }
-

@@ -6,12 +6,14 @@ import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
 import com.genersoft.iot.vmp.conf.security.JwtUtils;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
+import com.genersoft.iot.vmp.gb28181.bean.DeviceRegisterAttempt;
 import com.genersoft.iot.vmp.gb28181.bean.DeviceChannel;
 import com.genersoft.iot.vmp.gb28181.bean.SyncStatus;
 import com.genersoft.iot.vmp.gb28181.bean.TimeStatistics;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceChannelService;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
 import com.genersoft.iot.vmp.gb28181.service.IInviteStreamService;
+import com.genersoft.iot.vmp.gb28181.task.deviceStatus.DeviceRegisterAttemptManager;
 import com.genersoft.iot.vmp.gb28181.transmit.callback.DeferredResultHolder;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommander;
 import com.genersoft.iot.vmp.service.redisMsg.IRedisRpcService;
@@ -71,9 +73,25 @@ public class DeviceQuery {
 	@Autowired
 	private IRedisRpcService redisRpcService;
 
+	@Autowired
+	private DeviceRegisterAttemptManager deviceRegisterAttemptManager;
+
+	@Operation(summary = "查询待处理的下级设备注册请求", security = @SecurityRequirement(name = JwtUtils.HEADER))
+	@GetMapping("/register/attempts")
+	public List<DeviceRegisterAttempt> registerAttempts() {
+		return deviceRegisterAttemptManager.getAll();
+	}
+
+	@Operation(summary = "忽略待处理的下级设备注册请求", security = @SecurityRequirement(name = JwtUtils.HEADER))
+	@Parameter(name = "deviceId", description = "REGISTER From头中的设备国标编号", required = true)
+	@DeleteMapping("/register/attempts/{deviceId}")
+	public void deleteRegisterAttempt(@PathVariable String deviceId) {
+		deviceRegisterAttemptManager.remove(deviceId);
+	}
+
 	@Operation(summary = "查询国标设备", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
-	@GetMapping("/devices/{deviceId}")
+	@GetMapping({"/devices/{deviceId}", "/device/{deviceId}"})
 	public Device devices(@PathVariable String deviceId){
 
 		return deviceService.getDeviceByDeviceId(deviceId);
@@ -85,17 +103,23 @@ public class DeviceQuery {
 	@Parameter(name = "count", description = "每页查询数量", required = true)
 	@Parameter(name = "query", description = "搜索", required = false)
 	@Parameter(name = "status", description = "状态", required = false)
-	@GetMapping("/devices")
+	@Parameter(name = "accessType", description = "接入类型：DEVICE-国标设备，PLATFORM-下级平台", required = false)
+	@GetMapping({"/devices", "/list"})
 	@Options()
-	public PageInfo<Device> devices(int page, int count, String query, Boolean status){
+	public PageInfo<Device> devices(int page, int count, String query, Boolean status, String accessType){
 		if (ObjectUtils.isEmpty(query)){
 			query = null;
 		}
-		return deviceService.getAll(page, count, query, status);
+		if (!ObjectUtils.isEmpty(accessType)
+				&& !Device.ACCESS_TYPE_DEVICE.equals(accessType)
+				&& !Device.ACCESS_TYPE_PLATFORM.equals(accessType)) {
+			throw new IllegalArgumentException("不支持的接入类型：" + accessType);
+		}
+		return deviceService.getAll(page, count, query, status, accessType);
 	}
 
 
-	@GetMapping("/devices/{deviceId}/channels")
+	@GetMapping({"/devices/{deviceId}/channels", "/device/{deviceId}/channels"})
 	@Operation(summary = "分页查询通道", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
 	@Parameter(name = "page", description = "当前页", required = true)
@@ -103,16 +127,19 @@ public class DeviceQuery {
 	@Parameter(name = "query", description = "查询内容")
 	@Parameter(name = "online", description = "是否在线")
 	@Parameter(name = "channelType", description = "设备/子目录-> false/true")
+	@Parameter(name = "resourceType", description = "资源类型：CHANNEL-视频通道，DIRECTORY-目录节点")
 	public PageInfo<DeviceChannel> channels(@PathVariable String deviceId,
 											   int page, int count,
 											   @RequestParam(required = false) String query,
 											   @RequestParam(required = false) Boolean online,
-											   @RequestParam(required = false) Boolean channelType) {
+											   @RequestParam(required = false) Boolean channelType,
+											   @RequestParam(required = false) String resourceType) {
 		if (ObjectUtils.isEmpty(query)) {
 			query = null;
 		}
 
-		return deviceChannelService.queryChannelsByDeviceId(deviceId, query, channelType, online, page, count);
+		return deviceChannelService.queryChannelsByDeviceId(deviceId, query, channelType, online,
+				resourceType, page, count);
 	}
 
 	@GetMapping("/streams")
@@ -131,7 +158,7 @@ public class DeviceQuery {
 
 	@Operation(summary = "同步设备通道", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
-	@GetMapping("/devices/{deviceId}/sync")
+	@GetMapping({"/devices/{deviceId}/sync", "/device/{deviceId}/sync"})
 	public WVPResult<SyncStatus> devicesSync(@PathVariable String deviceId){
 
 		if (log.isDebugEnabled()) {
@@ -151,7 +178,7 @@ public class DeviceQuery {
 
 	@Operation(summary = "移除设备", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
-	@DeleteMapping("/devices/{deviceId}/delete")
+	@DeleteMapping({"/devices/{deviceId}/delete", "/device/{deviceId}/delete"})
 	public String delete(@PathVariable String deviceId){
 
 		if (log.isDebugEnabled()) {
@@ -178,16 +205,18 @@ public class DeviceQuery {
 												  @PathVariable String channelId,
 												  int page,
 												  int count,
-												  @RequestParam(required = false) String query,
-												  @RequestParam(required = false) Boolean online,
-												  @RequestParam(required = false) Boolean channelType){
+											  @RequestParam(required = false) String query,
+											  @RequestParam(required = false) Boolean online,
+											  @RequestParam(required = false) Boolean channelType,
+											  @RequestParam(required = false) String resourceType){
 
 		DeviceChannel deviceChannel = deviceChannelService.getOne(deviceId,channelId);
 		if (deviceChannel == null) {
             return new PageInfo<>();
 		}
 
-		return deviceChannelService.getSubChannels(deviceChannel.getDataDeviceId(), channelId, query, channelType, online, page, count);
+		return deviceChannelService.getSubChannels(deviceChannel.getDataDeviceId(), channelId, query, channelType,
+				online, resourceType, page, count);
 	}
 
 	@Operation(summary = "开启/关闭通道的音频", security = @SecurityRequirement(name = JwtUtils.HEADER))
@@ -260,7 +289,7 @@ public class DeviceQuery {
 
 	@Operation(summary = "设备状态查询", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
-	@GetMapping("/devices/{deviceId}/status")
+	@GetMapping({"/devices/{deviceId}/status", "/device/{deviceId}/status"})
 	public DeferredResult<WVPResult<String>> deviceStatusApi(@PathVariable String deviceId) {
 		if (log.isDebugEnabled()) {
 			log.debug("设备状态查询API调用");

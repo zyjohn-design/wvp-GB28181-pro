@@ -114,6 +114,13 @@ public interface RegionMapper {
             " <foreach collection='regionListForAdd'  item='item'  open='(' separator=',' close=')' > #{item.id}</foreach>" +
             " and exists (select 1 from wvp_common_region w2 where w1.parent_device_id = w2.device_id)" +
             " </script>")
+    @Update(value = " <script>" +
+            " update wvp_common_region w1" +
+            " join wvp_common_region w2 on w1.parent_device_id = w2.device_id" +
+            " set w1.parent_id = w2.id" +
+            " where w1.id in " +
+            " <foreach collection='regionListForAdd'  item='item'  open='(' separator=',' close=')' > #{item.id}</foreach>" +
+            " </script>", databaseId = "mysql")
     void updateParentId(List<Region> regionListForAdd);
 
     @Update(" <script>" +

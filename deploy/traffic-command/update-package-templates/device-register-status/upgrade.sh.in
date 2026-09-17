@@ -1,0 +1,101 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+DEPLOY_DIR=${1:-/opt/gb28181-h5}
+TARGET_ARCH='__TARGET_ARCH__'
+
+BACKEND_RELEASE='__BACKEND_RELEASE__'
+WEB_RELEASE='__WEB_RELEASE__'
+BACKEND_CURRENT='__BACKEND_CURRENT__'
+WEB_CURRENT='__WEB_CURRENT__'
+BACKEND_BACKUP='__BACKEND_BACKUP__'
+WEB_BACKUP='__WEB_BACKUP__'
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "错误：未找到 docker。" >&2
+    exit 1
+fi
+if [ ! -f "$DEPLOY_DIR/compose.yaml" ] || [ ! -x "$DEPLOY_DIR/compose.sh" ]; then
+    echo "错误：$DEPLOY_DIR 不是有效的 traffic-command 部署目录。" >&2
+    exit 1
+fi
+if [ ! -f "$DEPLOY_DIR/.env" ]; then
+    echo "错误：$DEPLOY_DIR/.env 不存在；不会使用 .env.example 代替现场配置。" >&2
+    exit 1
+fi
+
+machine_arch=$(uname -m)
+case "$TARGET_ARCH:$machine_arch" in
+    amd64:x86_64|amd64:amd64|arm64:aarch64|arm64:arm64) ;;
+    *)
+        echo "错误：当前服务器架构为 $machine_arch，本包目标架构为 $TARGET_ARCH。" >&2
+        exit 1
+        ;;
+esac
+
+cd "$DEPLOY_DIR"
+compose_images=$(./compose.sh config --images)
+if ! printf '%s\n' "$compose_images" | grep -Fqx "$BACKEND_CURRENT" || \
+   ! printf '%s\n' "$compose_images" | grep -Fqx "$WEB_CURRENT"; then
+    echo "错误：现场Compose未使用预期的 $TARGET_ARCH WVP镜像标签。" >&2
+    echo "预期：$BACKEND_CURRENT 和 $WEB_CURRENT" >&2
+    exit 1
+fi
+
+"$SCRIPT_DIR/verify.sh"
+
+if ! docker image inspect "$BACKEND_CURRENT" >/dev/null 2>&1; then
+    echo "错误：未找到当前后端基础镜像 $BACKEND_CURRENT。" >&2
+    exit 1
+fi
+if ! docker image inspect "$WEB_CURRENT" >/dev/null 2>&1; then
+    echo "错误：未找到当前前端基础镜像 $WEB_CURRENT。" >&2
+    exit 1
+fi
+
+if ! docker image inspect "$BACKEND_BACKUP" >/dev/null 2>&1; then
+    docker tag "$BACKEND_CURRENT" "$BACKEND_BACKUP"
+fi
+if ! docker image inspect "$WEB_BACKUP" >/dev/null 2>&1; then
+    docker tag "$WEB_CURRENT" "$WEB_BACKUP"
+fi
+
+echo "构建后端增量镜像（仅替换 wvp.jar）..."
+docker build --pull=false \
+    --build-arg "BASE_IMAGE=$BACKEND_CURRENT" \
+    -f "$SCRIPT_DIR/docker/backend.Dockerfile" \
+    -t "$BACKEND_RELEASE" \
+    "$SCRIPT_DIR"
+
+echo "构建前端增量镜像（仅替换静态资源）..."
+docker build --pull=false \
+    --build-arg "BASE_IMAGE=$WEB_CURRENT" \
+    -f "$SCRIPT_DIR/docker/web.Dockerfile" \
+    -t "$WEB_RELEASE" \
+    "$SCRIPT_DIR"
+
+docker tag "$BACKEND_RELEASE" "$BACKEND_CURRENT"
+docker tag "$WEB_RELEASE" "$WEB_CURRENT"
+
+cd "$DEPLOY_DIR"
+./compose.sh up -d --force-recreate polaris-wvp polaris-wvp-web
+
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+    backend_id=$(./compose.sh ps -q polaris-wvp)
+    web_id=$(./compose.sh ps -q polaris-wvp-web)
+    if [ -n "$backend_id" ] && [ -n "$web_id" ] && \
+       [ "$(docker inspect -f '{{.State.Running}}' "$backend_id")" = "true" ] && \
+       [ "$(docker inspect -f '{{.State.Running}}' "$web_id")" = "true" ]; then
+        ./compose.sh ps polaris-wvp polaris-wvp-web
+        echo "增量升级完成。现场 .env、数据库和业务数据均未修改。"
+        exit 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 2
+done
+
+./compose.sh ps polaris-wvp polaris-wvp-web
+echo "错误：容器未在60秒内全部进入 running；请检查日志或执行 rollback.sh。" >&2
+exit 1

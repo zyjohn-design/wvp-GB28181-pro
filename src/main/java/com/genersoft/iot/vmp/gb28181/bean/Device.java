@@ -12,6 +12,9 @@ import lombok.Data;
 @Schema(description = "国标设备/平台")
 public class Device {
 
+	public static final String ACCESS_TYPE_DEVICE = "DEVICE";
+	public static final String ACCESS_TYPE_PLATFORM = "PLATFORM";
+
 	@Schema(description = "数据库自增ID")
 	private int id;
 
@@ -151,9 +154,9 @@ public class Device {
 	private String mediaServerId;
 
 	/**
-	 * 字符集, 支持 UTF-8 与 GB2312
+	 * 字符集, 支持 UTF-8、GB2312、GBK 与 GB18030
 	 */
-	@Schema(description = "符集, 支持 UTF-8 与 GB2312")
+	@Schema(description = "字符集, 支持 UTF-8、GB2312、GBK 与 GB18030")
 	private String charset ;
 
 	/**
@@ -229,5 +232,31 @@ public class Device {
 			return 60;
 		}
 		return heartBeatInterval;
+	}
+
+	@Schema(description = "国标编号中的三位类型编码")
+	public String getTypeCode() {
+		GbCode gbCode = GbCode.decode(deviceId);
+		return gbCode == null ? null : gbCode.getTypeCode();
+	}
+
+	@Schema(description = "国标编号类型名称")
+	public String getTypeName() {
+		DeviceTypeEnum type = DeviceTypeEnum.fromCode(getTypeCode());
+		return type == null ? "未知类型" : type.getName();
+	}
+
+	@Schema(description = "接入类型：DEVICE-独立设备，PLATFORM-下级平台")
+	public String getAccessType() {
+		String typeCode = getTypeCode();
+		if (typeCode == null) {
+			return ACCESS_TYPE_DEVICE;
+		}
+		return Integer.parseInt(typeCode) >= 200 ? ACCESS_TYPE_PLATFORM : ACCESS_TYPE_DEVICE;
+	}
+
+	@Schema(description = "接入类型名称")
+	public String getAccessTypeName() {
+		return ACCESS_TYPE_PLATFORM.equals(getAccessType()) ? "下级平台" : "国标设备";
 	}
 }

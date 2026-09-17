@@ -93,9 +93,9 @@ media:
   # [可选] sslport
   http-ssl-port: 0
   flv-port: ${MediaHttp:}
-  flv-ssl-port: ${MediaHttps:}
+  flv-ssl-port: ${MediaHttps:0}
   ws-flv-port: ${MediaHttp:}
-  ws-flv-ssl-port: ${MediaHttps:}
+  ws-flv-ssl-port: ${MediaHttps:0}
   rtp-proxy-port: ${MediaRtp:}
   rtmp-port: ${MediaRtmp:}
   rtmp-ssl-port: 0

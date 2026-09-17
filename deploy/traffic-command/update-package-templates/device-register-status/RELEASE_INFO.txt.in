@@ -1,0 +1,10 @@
+package=__PACKAGE_NAME__
+git_commit=__GIT_COMMIT__
+target_os=linux
+target_arch=__TARGET_ARCH__
+backend_base_image=__BACKEND_CURRENT__
+web_base_image=__WEB_CURRENT__
+backend_release_image=__BACKEND_RELEASE__
+web_release_image=__WEB_RELEASE__
+database_migration=none
+configuration_change=none

@@ -135,7 +135,7 @@ export default {
       this.$store.dispatch("play/stop", [row.parentDeviceId, row.deviceId]).then(_ => {
         this.getChannelList();
       }).catch((error) => {
-        if (error.response.status === 402) {
+        if (error.response && error.response.status === 402) {
           this.getChannelList();
         } else {
           this.$message.error({showClose: true, message: error})

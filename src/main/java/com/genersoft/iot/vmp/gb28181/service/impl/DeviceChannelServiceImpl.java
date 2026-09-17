@@ -459,7 +459,8 @@ public class DeviceChannelServiceImpl implements IDeviceChannelService {
     }
 
     @Override
-    public PageInfo<DeviceChannel> getSubChannels(int deviceDbId, String channelId, String query, Boolean channelType, Boolean online, int page, int count) {
+    public PageInfo<DeviceChannel> getSubChannels(int deviceDbId, String channelId, String query, Boolean channelType,
+                                                  Boolean online, String resourceType, int page, int count) {
         PageHelper.startPage(page, count);
         String civilCode = null;
         String parentId = null;
@@ -479,7 +480,8 @@ public class DeviceChannelServiceImpl implements IDeviceChannelService {
                     .replaceAll("%", "/%")
                     .replaceAll("_", "/_");
         }
-        List<DeviceChannel> all = channelMapper.queryChannels(deviceDbId, civilCode, businessGroupId, parentId, query, false, channelType, online, null, null);
+        List<DeviceChannel> all = channelMapper.queryChannels(deviceDbId, civilCode, businessGroupId, parentId,
+                query, false, channelType, online, null, null, resourceType);
         return new PageInfo<>(all);
     }
 
@@ -489,7 +491,8 @@ public class DeviceChannelServiceImpl implements IDeviceChannelService {
     }
 
     @Override
-    public PageInfo queryChannelsByDeviceId(String deviceId, String query, Boolean hasSubChannel, Boolean online, int page, int count) {
+    public PageInfo queryChannelsByDeviceId(String deviceId, String query, Boolean hasSubChannel,
+                                             Boolean online, String resourceType, int page, int count) {
         Device device = deviceMapper.getDeviceByDeviceId(deviceId);
         if (device == null) {
             throw new ControllerException(ErrorCode.ERROR100.getCode(), "未找到设备：" + deviceId);
@@ -500,7 +503,8 @@ public class DeviceChannelServiceImpl implements IDeviceChannelService {
                     .replaceAll("_", "/_");
         }
         PageHelper.startPage(page, count);
-        List<DeviceChannel> all = channelMapper.queryChannels(device.getId(), null, null, null, query, false, hasSubChannel, online, null, null);
+        List<DeviceChannel> all = channelMapper.queryChannels(device.getId(), null, null, null, query, false,
+                hasSubChannel, online, null, null, resourceType);
         return new PageInfo<>(all);
     }
 
@@ -512,7 +516,8 @@ public class DeviceChannelServiceImpl implements IDeviceChannelService {
                     .replaceAll("%", "/%")
                     .replaceAll("_", "/_");
         }
-        List<DeviceChannel> all = channelMapper.queryChannels(null, null, null, null, query, queryParent, hasSubChannel, online, null, hasStream);
+        List<DeviceChannel> all = channelMapper.queryChannels(null, null, null, null, query, queryParent,
+                hasSubChannel, online, null, hasStream, null);
         return new PageInfo<>(all);
     }
 

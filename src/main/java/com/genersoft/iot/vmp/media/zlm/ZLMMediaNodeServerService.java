@@ -664,8 +664,12 @@ public class ZLMMediaNodeServerService implements IMediaNodeServerService {
         streamInfoResult.setRtsp(addr, mediaServer.getRtspPort(),mediaServer.getRtspSSLPort(), app,  stream, callIdParam);
 
         String flvFile = String.format("%s/%s.live.flv%s", app, stream, callIdParam);
-        streamInfoResult.setFlv(addr, mediaServer.getHttpPort(),mediaServer.getHttpSSlPort(), flvFile);
-        streamInfoResult.setWsFlv(addr, mediaServer.getHttpPort(),mediaServer.getHttpSSlPort(), flvFile);
+        int flvPort = mediaServer.getFlvPort() > 0 ? mediaServer.getFlvPort() : mediaServer.getHttpPort();
+        int flvSslPort = mediaServer.getFlvSSLPort() > 0 ? mediaServer.getFlvSSLPort() : mediaServer.getHttpSSlPort();
+        int wsFlvPort = mediaServer.getWsFlvPort() > 0 ? mediaServer.getWsFlvPort() : mediaServer.getHttpPort();
+        int wsFlvSslPort = mediaServer.getWsFlvSSLPort() > 0 ? mediaServer.getWsFlvSSLPort() : mediaServer.getHttpSSlPort();
+        streamInfoResult.setFlv(addr, flvPort, flvSslPort, flvFile);
+        streamInfoResult.setWsFlv(addr, wsFlvPort, wsFlvSslPort, flvFile);
 
         String mp4File = String.format("%s/%s.live.mp4%s", app, stream, callIdParam);
         streamInfoResult.setFmp4(addr, mediaServer.getHttpPort(),mediaServer.getHttpSSlPort(), mp4File);

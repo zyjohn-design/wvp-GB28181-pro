@@ -26,6 +26,8 @@ import javax.sip.message.MessageFactory;
 import javax.sip.message.Request;
 import javax.sip.message.Response;
 import java.io.ByteArrayInputStream;
+import java.io.StringReader;
+import java.nio.charset.Charset;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -192,9 +194,7 @@ public abstract class SIPRequestProcessorParent {
 			return null;
 		}
 
-		if (charset == null) {
-			charset = "gb2312";
-		}
+		charset = resolveInboundCharset(charset);
 		SAXReader reader = new SAXReader();
 		reader.setEncoding(charset);
 		// 对海康出现的未转义字符做处理。
@@ -225,9 +225,9 @@ public abstract class SIPRequestProcessorParent {
 		try {
 			xml = reader.read(new ByteArrayInputStream(bytesResult));
 		}catch (DocumentException e) {
-			log.warn("[xml解析异常]： 原文如下： \r\n{}", new String(bytesResult));
+			log.warn("[xml解析异常]： 原文如下： \r\n{}", new String(bytesResult, Charset.forName(charset)));
 			log.warn("[xml解析异常]： 原文如下： 尝试兼容性处理");
-			String[] xmlLineArray = new String(bytesResult).split("\\r?\\n");
+			String[] xmlLineArray = new String(bytesResult, Charset.forName(charset)).split("\\r?\\n");
 
 			// 兼容海康的address字段带有<破换xml结构导致无法解析xml的问题
 			StringBuilder stringBuilder = new StringBuilder();
@@ -237,9 +237,24 @@ public abstract class SIPRequestProcessorParent {
 				}
 				stringBuilder.append(s);
 			}
-			xml = reader.read(new ByteArrayInputStream(stringBuilder.toString().getBytes()));
+			xml = reader.read(new StringReader(stringBuilder.toString()));
 		}
 		return xml.getRootElement();
+	}
+
+	/**
+	 * GB18030向下兼容GBK和GB2312。部分平台虽然在XML中声明GB2312，实际会发送
+	 * “硚”等GBK扩展字符；用严格GB2312解码会产生替换字符“�”。这里只放宽入站
+	 * XML解码，设备保存的字符集和出站SIP报文配置均不改变。
+	 */
+	static String resolveInboundCharset(String charset) {
+		if (ObjectUtils.isEmpty(charset)
+				|| "GB2312".equalsIgnoreCase(charset)
+				|| "GBK".equalsIgnoreCase(charset)
+				|| "GB18030".equalsIgnoreCase(charset)) {
+			return "GB18030";
+		}
+		return charset;
 	}
 
 

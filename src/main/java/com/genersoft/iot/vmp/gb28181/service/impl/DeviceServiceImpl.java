@@ -952,14 +952,14 @@ public class DeviceServiceImpl implements IDeviceService {
     }
 
     @Override
-    public PageInfo<Device> getAll(int page, int count, String query, Boolean status) {
+    public PageInfo<Device> getAll(int page, int count, String query, Boolean status, String accessType) {
         PageHelper.startPage(page, count);
         if (query != null) {
             query = query.replaceAll("/", "//")
                     .replaceAll("%", "/%")
                     .replaceAll("_", "/_");
         }
-        List<Device> all = deviceMapper.getDeviceList(ChannelDataType.GB28181, query, status);
+        List<Device> all = deviceMapper.getDeviceList(ChannelDataType.GB28181, query, status, accessType);
         return new PageInfo<>(all);
     }
 

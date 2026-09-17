@@ -44,6 +44,20 @@ public class MediaConfig{
     @Value("${media.http-port:0}")
     private Integer httpPort;
 
+    // 现场旧配置可能将 MediaHttp/MediaHttps 展开为空字符串，使用 String 后自行容错，
+    // 避免 Spring 将空值直接转换 Integer 导致整个 WVP 上下文启动失败。
+    @Value("${media.flv-port:}")
+    private String flvPort;
+
+    @Value("${media.flv-ssl-port:}")
+    private String flvSslPort;
+
+    @Value("${media.ws-flv-port:}")
+    private String wsFlvPort;
+
+    @Value("${media.ws-flv-ssl-port:}")
+    private String wsFlvSslPort;
+
     @Value("${media.auto-config:true}")
     private boolean autoConfig = true;
 
@@ -108,6 +122,10 @@ public class MediaConfig{
         mediaServer.setSdpIp(getSdpIp());
         mediaServer.setStreamIp(getStreamIp());
         mediaServer.setHttpPort(httpPort);
+        mediaServer.setFlvPort(parsePort(flvPort, httpPort));
+        mediaServer.setFlvSSLPort(parsePort(flvSslPort, 0));
+        mediaServer.setWsFlvPort(parsePort(wsFlvPort, httpPort));
+        mediaServer.setWsFlvSSLPort(parsePort(wsFlvSslPort, 0));
         mediaServer.setAutoConfig(autoConfig);
         mediaServer.setSecret(secret);
         mediaServer.setRtpEnable(rtpEnable);
@@ -125,6 +143,19 @@ public class MediaConfig{
         mediaServer.setUpdateTime(DateUtil.getNow());
 
         return mediaServer;
+    }
+
+    private int parsePort(String value, int fallback) {
+        if (ObjectUtils.isEmpty(value)) {
+            return fallback;
+        }
+        try {
+            int port = Integer.parseInt(value.trim());
+            return port > 0 && port <= 65535 ? port : fallback;
+        } catch (NumberFormatException e) {
+            log.warn("[媒体端口配置] 无法解析端口值：{}，使用默认值：{}", value, fallback);
+            return fallback;
+        }
     }
 
     private boolean isValidIPAddress(String ipAddress) {

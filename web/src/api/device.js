@@ -2,6 +2,16 @@ import request from '@/utils/request'
 
 // 国标设备API
 
+function compactParams(params) {
+  return Object.keys(params).reduce((result, key) => {
+    const value = params[key]
+    if (value !== null && value !== undefined && value !== '') {
+      result[key] = value
+    }
+    return result
+  }, {})
+}
+
 export function queryDeviceSyncStatus(deviceId) {
   return request({
     method: 'get',
@@ -13,30 +23,48 @@ export function queryDeviceSyncStatus(deviceId) {
 }
 
 export function queryDevices(params) {
-  const { page, count, query, status } = params
+  const { page, count, query, status, accessType } = params
+  const requestParams = compactParams({
+    page: page,
+    count: count,
+    query: query,
+    status: status,
+    accessType: accessType
+  })
   return request({
     method: 'get',
-    url: `/api/device/query/devices`,
-    params: {
-      page: page,
-      count: count,
-      query: query,
-      status: status
-    }
+    // 某些专网安全设备会重置包含 /devices?...query= 的请求；使用语义等价的
+    // 列表路径，同时保留后端旧路径以兼容已有调用。
+    url: '/api/device/query/list',
+    params: requestParams
+  })
+}
+
+export function queryRegisterAttempts() {
+  return request({
+    method: 'get',
+    url: '/api/device/query/register/attempts'
+  })
+}
+
+export function deleteRegisterAttempt(deviceId) {
+  return request({
+    method: 'delete',
+    url: `/api/device/query/register/attempts/${deviceId}`
   })
 }
 
 export function deleteDevice(deviceId) {
   return request({
     method: 'delete',
-    url: `/api/device/query/devices/${deviceId}/delete`
+    url: `/api/device/query/device/${deviceId}/delete`
   })
 }
 
 export function sync(deviceId) {
   return request({
     method: 'get',
-    url: `/api/device/query/devices/${deviceId}/sync`
+    url: `/api/device/query/device/${deviceId}/sync`
   })
 }
 
@@ -158,18 +186,19 @@ export function queryChannelOne(params) {
 }
 
 export function queryChannels(deviceId, params) {
-  const { page, count, query, online, channelType, catalogUnderDevice } = params
+  const { page, count, query, online, channelType, resourceType, catalogUnderDevice } = params
   return request({
     method: 'get',
-    url: `/api/device/query/devices/${deviceId}/channels`,
-    params: {
+    url: `/api/device/query/device/${deviceId}/channels`,
+    params: compactParams({
       page: page,
       count: count,
       query: query,
       online: online,
       channelType: channelType,
+      resourceType: resourceType,
       catalogUnderDevice: catalogUnderDevice
-    }
+    })
   })
 }
 
@@ -178,11 +207,11 @@ export function queryHasStreamChannels(params) {
   return request({
     method: 'get',
     url: `/api/device/query/streams`,
-    params: {
+    params: compactParams({
       page: page,
       count: count,
       query: query
-    }
+    })
   })
 }
 
@@ -200,17 +229,18 @@ export function deviceRecord(params) {
 }
 
 export function querySubChannels(params, deviceId, parentChannelId) {
-  const { page, count, query, online, channelType } = params
+  const { page, count, query, online, channelType, resourceType } = params
   return request({
     method: 'get',
     url: `/api/device/query/sub_channels/${deviceId}/${parentChannelId}/channels`,
-    params: {
+    params: compactParams({
       page: page,
       count: count,
       query: query,
       online: online,
-      channelType: channelType
-    }
+      channelType: channelType,
+      resourceType: resourceType
+    })
   })
 }
 
@@ -270,7 +300,7 @@ export function add(data) {
 export function queryDeviceOne(deviceId) {
   return request({
     method: 'get',
-    url: `/api/device/query/devices/${deviceId}`
+    url: `/api/device/query/device/${deviceId}`
   })
 }
 
@@ -330,4 +360,3 @@ export function teleboot(deviceId) {
     url: `/api/device/control/teleboot/${deviceId}`
   })
 }
-

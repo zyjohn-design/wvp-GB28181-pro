@@ -15,17 +15,17 @@
             @input="search"
           />
         </el-form-item>
-        <el-form-item label="通道类型">
+        <el-form-item label="资源类型">
           <el-select
-            v-model="channelType"
+            v-model="resourceType"
             style="width: 8rem; margin-right: 1rem;"
             placeholder="请选择"
             default-first-option
             @change="search"
           >
             <el-option label="全部" value="" />
-            <el-option label="设备" value="false" />
-            <el-option label="子目录" value="true" />
+            <el-option label="视频通道" value="CHANNEL" />
+            <el-option label="目录/平台节点" value="DIRECTORY" />
           </el-select>
         </el-form-item>
         <el-form-item label="在线状态">
@@ -63,19 +63,37 @@
           <el-button icon="el-icon-refresh-right" circle @click="refresh()" />
         </el-form-item>
       </el-form>
+      <el-alert
+        :title="accessType === 'PLATFORM' ? '下级平台资源目录' : '国标设备资源'"
+        :description="accessType === 'PLATFORM'
+          ? '以下目录、行政区划和平台节点来自下级平台的 Catalog 上报，只能展开查看；只有“视频通道”且状态在线时可以播放。'
+          : '目录节点只能展开查看；只有“视频通道”且状态在线时可以播放。'"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 12px;"
+      />
       <el-table
         ref="channelListTable"
         size="small"
         :data="deviceChannelList"
-        height="calc(100% - 64px)"
+        height="calc(100% - 124px)"
         style="width: 100%; font-size: 12px;"
         header-row-class-name="table-header"
       >
         <el-table-column prop="name" label="名称" min-width="180" />
         <el-table-column prop="deviceId" label="编号" min-width="180" />
+        <el-table-column label="资源类型" min-width="110">
+          <template v-slot:default="scope">
+            <el-tag :type="resourceTagType(scope.row)" size="medium" effect="plain">
+              {{ scope.row.resourceTypeName || '视频通道' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="快照" min-width="100">
           <template v-slot:default="scope">
             <el-image
+              v-if="scope.row.playable"
               :src="getSnap(scope.row)"
               :preview-src-list="getBigSnap(scope.row)"
               :fit="'contain'"
@@ -86,6 +104,7 @@
                 <i class="el-icon-picture-outline" />
               </div>
             </el-image>
+            <span v-else class="directory-placeholder"><i class="el-icon-folder" /> 非视频资源</span>
           </template>
         </el-table-column>
         <!--          <el-table-column prop="subCount" label="子节点数" min-width="100">-->
@@ -104,12 +123,14 @@
         </el-table-column>
         <el-table-column label="开启音频" min-width="100">
           <template v-slot:default="scope">
-            <el-switch v-model="scope.row.hasAudio" active-color="#409EFF" @change="updateChannel(scope.row)" />
+            <el-switch v-if="scope.row.playable" v-model="scope.row.hasAudio" active-color="#409EFF" @change="updateChannel(scope.row)" />
+            <span v-else>—</span>
           </template>
         </el-table-column>
         <el-table-column label="码流类型" min-width="180">
           <template v-slot:default="scope">
             <el-select
+              v-if="scope.row.playable"
               v-model="scope.row.streamIdentification"
               size="mini"
               style="margin-right: 1rem;"
@@ -126,27 +147,38 @@
               <el-option label="streamMode:MAIN(主码流-水星+TP-LINK)" value="streamMode:MAIN" />
               <el-option label="streamMode:SUB(子码流-水星+TP-LINK)" value="streamMode:SUB" />
             </el-select>
+            <span v-else>—</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="100">
           <template v-slot:default="scope">
             <div slot="reference" class="name-wrapper">
-              <el-tag v-if="scope.row.status === 'ON'" size="medium">在线</el-tag>
-              <el-tag v-if="scope.row.status !== 'ON'" size="medium" type="info">离线</el-tag>
+              <el-tag v-if="!scope.row.playable" size="medium" type="info">不适用</el-tag>
+              <el-tag v-else-if="scope.row.status === 'ON'" size="medium">在线</el-tag>
+              <el-tag v-else size="medium" type="info">离线</el-tag>
             </div>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="340" fixed="right">
           <template v-slot:default="scope">
             <el-button
+              v-if="scope.row.playable"
               size="medium"
-              :disabled="device == null || device.online === 0"
+              :disabled="device == null || device.online === 0 || scope.row.status !== 'ON'"
+              :title="scope.row.status !== 'ON' ? '视频通道离线，无法播放' : '播放视频'"
               icon="el-icon-video-play"
               type="text"
               :loading="scope.row.playLoading"
               @click="sendDevicePush(scope.row)"
             >播放
             </el-button>
+            <el-button
+              v-else
+              size="medium"
+              type="text"
+              disabled
+              :title="scope.row.playDisabledReason"
+            >不可播放</el-button>
             <el-button
               v-if="!!scope.row.streamId"
               size="medium"
@@ -168,15 +200,15 @@
             </el-button>
             <el-divider direction="vertical" />
             <el-button
-              v-if="scope.row.subCount > 0 || scope.row.parental === 1 || scope.row.deviceId.length <= 8"
+              v-if="isDirectoryResource(scope.row)"
               size="medium"
               icon="el-icon-s-open"
               type="text"
               @click="changeSubchannel(scope.row)"
             >查看
             </el-button>
-            <el-divider v-if="scope.row.subCount > 0 || scope.row.parental === 1 || scope.row.deviceId.length <= 8" direction="vertical" />
-            <el-dropdown @command="(command)=>{moreClick(command, scope.row)}">
+            <el-divider v-if="isDirectoryResource(scope.row)" direction="vertical" />
+            <el-dropdown v-if="scope.row.playable" @command="(command)=>{moreClick(command, scope.row)}">
               <el-button size="medium" type="text">
                 更多<i class="el-icon-arrow-down el-icon--right" />
               </el-button>
@@ -247,6 +279,10 @@ export default {
       type: String,
       default: null
     },
+    accessType: {
+      type: String,
+      default: 'DEVICE'
+    },
     parentChannelId: {
       type: String || null,
       default: null
@@ -260,7 +296,7 @@ export default {
       currentPlayerInfo: {}, // 当前播放对象
       updateLooper: 0, // 数据刷新轮训标志
       searchStr: '',
-      channelType: '',
+      resourceType: '',
       online: '',
       subStream: '',
       winHeight: window.innerHeight - 200,
@@ -305,6 +341,14 @@ export default {
     clearTimeout(this.updateLooper)
   },
   methods: {
+    isDirectoryResource(row) {
+      return !row.playable || row.subCount > 0 || row.parental === 1
+    },
+    resourceTagType(row) {
+      if (row.resourceType === 'CHANNEL') return 'success'
+      if (row.resourceType === 'PLATFORM') return 'warning'
+      return 'info'
+    },
     initData: function() {
       if (this.parentChannelId === null || typeof (this.parentChannelId) === 'undefined' || this.parentChannelId === 0) {
         this.getDeviceChannelList()
@@ -337,7 +381,7 @@ export default {
         count: this.count,
         query: this.searchStr,
         online: this.online,
-        channelType: this.channelType
+        resourceType: this.resourceType
       }]).then(data => {
         this.total = data.total
         this.deviceChannelList = data.list
@@ -354,6 +398,14 @@ export default {
 
     // 通知设备上传媒体流
     sendDevicePush: function(itemData) {
+      if (!itemData.playable) {
+        this.$message.warning(itemData.playDisabledReason || '该节点不是视频通道，不能播放')
+        return
+      }
+      if (itemData.status !== 'ON') {
+        this.$message.warning('视频通道离线，无法播放')
+        return
+      }
       const deviceId = this.deviceId
       const channelId = itemData.deviceId
       itemData.playLoading = true
@@ -423,7 +475,7 @@ export default {
       }).then(data => {
         this.initData()
       }).catch((error) => {
-        if (error.response.status === 402) { // 已经停止过
+        if (error.response && error.response.status === 402) { // 已经停止过
           this.initData()
         } else {
           console.log(error)
@@ -464,7 +516,7 @@ export default {
       var url = `/${this.$router.currentRoute.name}/${this.$router.currentRoute.params.deviceId}/${itemData.deviceId}`
       this.$router.push(url).then(() => {
         this.searchStr = ''
-        this.channelType = ''
+        this.resourceType = ''
         this.online = ''
         this.initParam()
         this.initData()
@@ -477,7 +529,7 @@ export default {
           count: this.count,
           query: this.searchStr,
           online: this.online,
-          channelType: this.channelType
+          resourceType: this.resourceType
         },
         this.deviceId,
         this.parentChannelId
@@ -554,3 +606,10 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.directory-placeholder {
+  color: #909399;
+  font-size: 12px;
+}
+</style>

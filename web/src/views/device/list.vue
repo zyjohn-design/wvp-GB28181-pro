@@ -25,7 +25,7 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button icon="el-icon-plus" style="margin-right: 1rem;" type="primary" @click="add">添加设备</el-button>
+        <el-button icon="el-icon-plus" style="margin-right: 1rem;" type="primary" @click="add">{{ addButtonText }}</el-button>
         <el-button icon="el-icon-info" style="margin-right: 1rem;" @click="showInfo()">接入信息
         </el-button>
       </el-form-item>
@@ -34,19 +34,73 @@
           icon="el-icon-refresh-right"
           circle
           :loading="getDeviceListLoading"
-          @click="getDeviceList()"
+          @click="refreshAll()"
         />
       </el-form-item>
     </el-form>
+    <el-alert
+      :title="accessGuideTitle"
+      :description="accessGuideDescription"
+      type="info"
+      :closable="false"
+      show-icon
+      class="access-guide"
+    />
+    <el-card v-if="registerAttempts.length" class="register-attempt-card" shadow="never">
+      <div slot="header" class="register-attempt-header">
+        <span><i class="el-icon-warning-outline" /> 发现 {{ registerAttempts.length }} 个待处理注册请求</span>
+        <span class="register-attempt-subtitle">请求已到达本服务，但尚未完成接入；注册成功后会自动消失</span>
+      </div>
+      <el-table :data="registerAttempts" size="mini" max-height="210">
+        <el-table-column label="状态" width="90">
+          <template v-slot:default="scope">
+            <el-tag :type="scope.row.status === 'AUTH_FAILED' ? 'danger' : 'warning'" size="mini">
+              {{ scope.row.status === 'AUTH_FAILED' ? '认证失败' : '待配置' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="deviceId" label="REGISTER设备编号" min-width="180" />
+        <el-table-column label="来源" min-width="180">
+          <template v-slot:default="scope">
+            {{ (scope.row.transport || 'SIP').toLowerCase() }}://{{ scope.row.remoteIp }}:{{ scope.row.remotePort }}
+          </template>
+        </el-table-column>
+        <el-table-column label="认证用户名" min-width="170">
+          <template v-slot:default="scope">{{ scope.row.authUsername || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="message" label="原因" min-width="260" />
+        <el-table-column prop="suggestion" label="处理指引" min-width="360" />
+        <el-table-column label="最近尝试" min-width="185">
+          <template v-slot:default="scope">
+            {{ scope.row.lastAttemptTime }}（{{ scope.row.attemptCount }}次）
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="145" fixed="right">
+          <template v-slot:default="scope">
+            <el-button type="text" size="mini" @click="configureRegisterAttempt(scope.row)">配置接入</el-button>
+            <el-divider direction="vertical" />
+            <el-button type="text" size="mini" class="danger-text" @click="ignoreRegisterAttempt(scope.row)">忽略</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
     <!--设备列表-->
     <el-table
       size="small"
       :data="deviceList"
-      height="calc(100% - 64px)"
+      :height="deviceTableHeight"
       header-row-class-name="table-header"
     >
       <el-table-column prop="name" label="名称" min-width="160" />
-      <el-table-column prop="deviceId" label="设备编号" min-width="160" />
+      <el-table-column prop="deviceId" :label="idColumnLabel" min-width="190" />
+      <el-table-column label="接入类型" min-width="150">
+        <template v-slot:default="scope">
+          <el-tag :type="scope.row.accessType === 'PLATFORM' ? 'warning' : 'success'" size="medium">
+            {{ scope.row.accessTypeName }}
+          </el-tag>
+          <div class="type-name">{{ scope.row.typeCode }} · {{ scope.row.typeName }}</div>
+        </template>
+      </el-table-column>
       <el-table-column label="地址" min-width="180">
         <template v-slot:default="scope">
           <div slot="reference" class="name-wrapper">
@@ -149,7 +203,7 @@
             size="medium"
             icon="el-icon-video-camera"
             @click="showChannelList(scope.row)"
-          >通道
+          >{{ scope.row.accessType === 'PLATFORM' ? '资源' : '通道' }}
           </el-button>
           <el-divider direction="vertical" />
           <el-button size="medium" icon="el-icon-edit" type="text" @click="edit(scope.row)">编辑</el-button>
@@ -168,7 +222,7 @@
       @size-change="handleSizeChange"
       @current-change="currentChange"
     />
-    <deviceEdit ref="deviceEdit" />
+    <deviceEdit ref="deviceEdit" :access-type="accessType" />
     <syncChannelProgress ref="syncChannelProgress" />
     <configInfo ref="configInfo" />
     <timeStatistics ref="timeStatistics" />
@@ -190,6 +244,12 @@ export default {
     syncChannelProgress,
     timeStatistics
   },
+  props: {
+    accessType: {
+      type: String,
+      default: 'DEVICE'
+    }
+  },
   data() {
     return {
       deviceList: [], // 设备列表
@@ -202,7 +262,9 @@ export default {
       currentPage: 1,
       count: 15,
       total: 0,
-      getDeviceListLoading: false
+      getDeviceListLoading: false,
+      registerAttempts: [],
+      refreshInProgress: false
     }
   },
   computed: {
@@ -211,21 +273,47 @@ export default {
     },
     myServerId() {
       return this.$store.getters.serverId
+    },
+    deviceTableHeight() {
+      return this.registerAttempts.length ? 'calc(100% - 410px)' : 'calc(100% - 124px)'
+    },
+    isPlatformPage() {
+      return this.accessType === 'PLATFORM'
+    },
+    addButtonText() {
+      return this.isPlatformPage ? '添加下级平台' : '添加国标设备'
+    },
+    idColumnLabel() {
+      return this.isPlatformPage ? '下级平台编号' : '设备编号'
+    },
+    accessGuideTitle() {
+      return this.isPlatformPage ? '这里管理向本系统注册的下级平台' : '这里管理直接接入的 IPC、NVR 等国标设备'
+    },
+    accessGuideDescription() {
+      return this.isPlatformPage
+        ? '在宇视等下级平台中配置本系统为“上级平台”，完成平台注册后，还必须配置资源共享；平台上报的目录不能播放，只有共享的在线摄像机通道可以播放。'
+        : '设备需使用自身20位国标编号向本系统注册。独立摄像机或NVR在这里管理；需要接入组织目录和大量摄像机的平台，请到“下级平台”。'
+    }
+  },
+  watch: {
+    accessType() {
+      this.currentPage = 1
+      this.refreshAll()
     }
   },
   mounted() {
     this.initData()
-    this.updateLooper = setInterval(this.getDeviceList, 10000)
+    this.updateLooper = setInterval(this.refreshAll, 10000)
   },
   destroyed() {
     this.$destroy('videojs')
-    clearTimeout(this.updateLooper)
+    clearInterval(this.updateLooper)
   },
   methods: {
     initData: function() {
       this.currentPage = 1
       this.total = 0
-      this.getDeviceList()
+      this.refreshAll()
     },
     currentChange: function(val) {
       this.currentPage = val
@@ -237,11 +325,12 @@ export default {
     },
     getDeviceList: function() {
       this.getDeviceListLoading = true
-      this.$store.dispatch('device/queryDevices', {
+      return this.$store.dispatch('device/queryDevices', {
         page: this.currentPage,
         count: this.count,
         query: this.searchStr,
-        status: this.online
+        status: this.online,
+        accessType: this.accessType
       }).then((data) => {
         this.total = data.total
         this.deviceList = data.list
@@ -253,6 +342,64 @@ export default {
           })
         }).finally(() => {
         this.getDeviceListLoading = false
+      })
+    },
+    getRegisterAttempts: function() {
+      return this.$store.dispatch('device/queryRegisterAttempts')
+        .then((data) => {
+          this.registerAttempts = (data || []).filter(item => this.getAccessType(item.deviceId) === this.accessType)
+        })
+        .catch(() => {
+          this.registerAttempts = []
+        })
+    },
+    refreshAll: function() {
+      if (this.refreshInProgress) {
+        return Promise.resolve()
+      }
+      this.refreshInProgress = true
+      // 两个轮询请求串行执行，避免部分现场网络设备重置并发复用的长连接。
+      return this.getDeviceList()
+        .then(() => this.getRegisterAttempts())
+        .finally(() => {
+          this.refreshInProgress = false
+        })
+    },
+    getAccessType: function(deviceId) {
+      if (!/^\d{20}$/.test(deviceId || '')) {
+        return 'DEVICE'
+      }
+      return Number(deviceId.substring(10, 13)) >= 200 ? 'PLATFORM' : 'DEVICE'
+    },
+    configureRegisterAttempt: function(row) {
+      const hint = `${row.message}。${row.suggestion}`
+      this.$store.dispatch('device/queryDeviceOne', row.deviceId)
+        .then((device) => {
+          const callback = () => {
+            this.$refs.deviceEdit.close()
+            this.$message.success('配置已保存，正在等待下级重新注册；成功后该状态会自动消失')
+            setTimeout(this.refreshAll, 500)
+          }
+          if (device && device.id) {
+            this.$refs.deviceEdit.openDialog(device, callback, hint)
+          } else {
+            this.$refs.deviceEdit.openDialogForAdd({
+              deviceId: row.deviceId,
+              name: `${this.isPlatformPage ? '待接入平台' : '待接入设备'} ${row.deviceId}`
+            }, callback, hint)
+          }
+        })
+        .catch((error) => {
+          this.$message.error(error.message || error)
+        })
+    },
+    ignoreRegisterAttempt: function(row) {
+      this.$confirm(`忽略设备 ${row.deviceId} 的这条注册提示？下次注册失败时仍会重新出现。`, '忽略注册提示', {
+        type: 'warning'
+      }).then(() => {
+        return this.$store.dispatch('device/deleteRegisterAttempt', row.deviceId)
+      }).then(() => {
+        this.getRegisterAttempts()
       })
     },
     deleteDevice: function(row) {
@@ -425,3 +572,45 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.register-attempt-card {
+  margin-bottom: 12px;
+  border-color: #f3d19e;
+}
+
+.access-guide {
+  margin-bottom: 12px;
+}
+
+.type-name {
+  margin-top: 4px;
+  color: #909399;
+  font-size: 11px;
+}
+
+.register-attempt-card ::v-deep .el-card__header {
+  padding: 10px 16px;
+  background: #fdf6ec;
+}
+
+.register-attempt-card ::v-deep .el-card__body {
+  padding: 0;
+}
+
+.register-attempt-header {
+  color: #b26a00;
+  font-weight: 600;
+}
+
+.register-attempt-subtitle {
+  margin-left: 16px;
+  color: #8c8c8c;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.danger-text {
+  color: #f56c6c;
+}
+</style>

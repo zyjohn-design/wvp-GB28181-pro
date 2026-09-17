@@ -18,6 +18,12 @@ import java.lang.reflect.InvocationTargetException;
 @EqualsAndHashCode(callSuper = true)
 public class DeviceChannel extends CommonGBChannel {
 
+	public static final int RESOURCE_CHANNEL = 0;
+	public static final int RESOURCE_REGION = 1;
+	public static final int RESOURCE_GROUP = 2;
+	public static final int RESOURCE_PLATFORM = 3;
+	public static final int RESOURCE_DIRECTORY = 4;
+
 	@Schema(description = "数据库自增ID")
 	private int id;
 
@@ -188,7 +194,7 @@ public class DeviceChannel extends CommonGBChannel {
 			"用于选择码流时组成码流标识。默认为null，不设置。可选值: stream/streamnumber/streamprofile/streamMode")
 	private String streamIdentification;
 
-	@Schema(description = "通道类型， 默认0, 0： 普通通道，1 行政区划 2 业务分组/虚拟组织")
+	@Schema(description = "资源类型，0：视频通道，1：行政区划，2：业务分组/虚拟组织，3：平台节点，4：普通目录")
 	private int channelType;
 
 	private String dbKey;
@@ -251,6 +257,77 @@ public class DeviceChannel extends CommonGBChannel {
 		deviceChannel.setDeviceId(deviceElement.getText());
 		deviceChannel.setDataType(ChannelDataType.GB28181);
 		return deviceChannel;
+	}
+
+	public void identifyResourceType() {
+		if (deviceId == null) {
+			channelType = RESOURCE_DIRECTORY;
+			return;
+		}
+		if (deviceId.length() <= 8) {
+			channelType = RESOURCE_REGION;
+			return;
+		}
+		GbCode gbCode = GbCode.decode(deviceId);
+		if (gbCode != null) {
+			int typeCode = Integer.parseInt(gbCode.getTypeCode());
+			if (typeCode == 215 || typeCode == 216) {
+				channelType = RESOURCE_GROUP;
+				return;
+			}
+			if (typeCode >= 200) {
+				channelType = RESOURCE_PLATFORM;
+				return;
+			}
+		}
+		channelType = parental != null && parental == 1 ? RESOURCE_DIRECTORY : RESOURCE_CHANNEL;
+	}
+
+	@Schema(description = "资源类型标识")
+	public String getResourceType() {
+		return switch (channelType) {
+			case RESOURCE_REGION -> "REGION";
+			case RESOURCE_GROUP -> "GROUP";
+			case RESOURCE_PLATFORM -> "PLATFORM";
+			case RESOURCE_DIRECTORY -> "DIRECTORY";
+			default -> "CHANNEL";
+		};
+	}
+
+	@Schema(description = "资源类型名称")
+	public String getResourceTypeName() {
+		return switch (channelType) {
+			case RESOURCE_REGION -> "行政区划";
+			case RESOURCE_GROUP -> "业务分组";
+			case RESOURCE_PLATFORM -> "平台节点";
+			case RESOURCE_DIRECTORY -> "资源目录";
+			default -> "视频通道";
+		};
+	}
+
+	@Schema(description = "是否为可点播的视频通道")
+	public boolean isPlayable() {
+		if (channelType != RESOURCE_CHANNEL || deviceId == null || deviceId.length() != 20) {
+			return false;
+		}
+		if (parental != null && parental == 1) {
+			return false;
+		}
+		GbCode gbCode = GbCode.decode(deviceId);
+		return gbCode == null || Integer.parseInt(gbCode.getTypeCode()) < 200;
+	}
+
+	@Schema(description = "不可点播原因")
+	public String getPlayDisabledReason() {
+		if (isPlayable()) {
+			return null;
+		}
+		return switch (channelType) {
+			case RESOURCE_REGION -> "行政区划不能播放，请展开查看摄像机";
+			case RESOURCE_GROUP -> "业务分组不能播放，请展开查看摄像机";
+			case RESOURCE_PLATFORM -> "平台节点不能播放，请查看平台共享的视频通道";
+			default -> "目录节点不能播放，请展开查看摄像机";
+		};
 	}
 
 	public CommonGBChannel buildCommonGBChannelForStatus() {

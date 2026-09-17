@@ -92,10 +92,27 @@ export default {
     },
     getUrlByStreamInfo() {
       if (!this.streamInfo) return ''
+      let url
       if (location.protocol === 'https:') {
-        return this.streamInfo[this.player[this.activePlayer][1]]
+        url = this.streamInfo[this.player[this.activePlayer][1]]
+      } else {
+        url = this.streamInfo[this.player[this.activePlayer][0]]
       }
-      return this.streamInfo[this.player[this.activePlayer][0]]
+      return this.useSameOriginMediaProxy(url)
+    },
+    useSameOriginMediaProxy(url) {
+      if (!url || typeof url !== 'string') return url
+      try {
+        const target = new URL(url, window.location.href)
+        if (target.pathname.startsWith('/rtp/')) {
+          target.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+          target.host = window.location.host
+          return target.toString()
+        }
+      } catch (error) {
+        console.warn('播放器地址解析失败，使用原地址', error)
+      }
+      return url
     },
     changePlayer(tab) {
       this.activePlayer = tab.name

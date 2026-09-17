@@ -1,0 +1,57 @@
+# WVP 下级注册状态增量更新包
+
+版本：`__RELEASE_ID__`  
+目标架构：Linux __TARGET_ARCH__  
+基线镜像：`__BACKEND_CURRENT__`、`__WEB_CURRENT__`
+
+本包只替换 WVP 后端 JAR 和前端静态资源，只重建 `polaris-wvp`、
+`polaris-wvp-web` 两个容器。不会覆盖现场 `.env`，不会修改 MySQL、Redis、
+ZLMediaKit、H5适配器、录像或其他运行数据。
+
+## 更新内容
+
+- “国标设备”页面显示下级设备的待配置/认证失败状态。
+- 显示REGISTER设备编号、来源地址、认证用户名、失败原因和处理指引。
+- 支持一键配置接入与忽略提示；成功注册后自动清除提示。
+- 修复请求失败时读取不存在的 `error.response.status` 导致页面报错的问题。
+- 修复部分网络设备重置 `/api/device/query/devices` 请求的问题，并为设备列表、详情、
+  通道、同步、删除和状态查询统一使用兼容路由。
+- 修复 MySQL 8.4 刷新国标设备目录时，区域和业务分组父级关联更新触发 1093
+  （`You can't specify target table`）导致入库失败的问题。
+- 按国标编号类型码将“国标设备”和“下级平台”拆分为独立入口，并将原“国标级联”
+  明确命名为“上级平台”。
+- Catalog 资源区分视频通道、行政区划、业务分组、平台节点和普通目录；目录节点不再
+  显示为离线摄像机，也不能发起点播。
+- 点播接口增加资源类型与离线状态校验，错误操作返回明确指引，不再返回笼统的内部错误。
+- Catalog按GB18030兼容方式解析GB2312/GBK中文，修复“硚”等扩展汉字显示为乱码；
+  升级后刷新下级平台目录即可更新已有乱码名称。
+- 修复ZLMediaKit的FLV/WebSocket-FLV地址错误使用内部80端口的问题，并对`/rtp/`
+  播放地址启用Web同源代理保护，避免WebSocket握手返回HTTP 200。
+
+## 升级
+
+```sh
+tar -xzf __PACKAGE_NAME__.tar.gz
+cd __PACKAGE_NAME__
+chmod +x upgrade.sh rollback.sh verify.sh
+./verify.sh
+./upgrade.sh /opt/gb28181-h5
+```
+
+最后一个参数是现有 `deploy/traffic-command` 部署目录，其中必须已有
+`compose.yaml`、`compose.sh` 和现场真实的 `.env`。
+
+升级脚本会先为当前两个正式镜像建立独立回滚标签，再基于现场镜像离线构建
+差分镜像，最后只重建后端和Web容器。构建过程不访问远程镜像仓库。
+
+## 回滚
+
+```sh
+./rollback.sh /opt/gb28181-h5
+```
+
+## 注意
+
+- 本包要求现场已有上述基线镜像和可用的 Docker 构建功能。
+- 页面中的注册密码使用密码输入框，不会写入注册状态或日志。
+- 浏览器若仍显示旧页面，请强制刷新或清理站点缓存。

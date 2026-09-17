@@ -155,7 +155,7 @@ public interface IDeviceService {
      */
     List<Device> getAll();
 
-    PageInfo<Device> getAll(int page, int count, String query, Boolean status);
+    PageInfo<Device> getAll(int page, int count, String query, Boolean status, String accessType);
 
     Device getDevice(Integer gbDeviceDbId);
 

@@ -174,4 +174,20 @@ class DeviceChannelProviderTest {
         String sql = provider.queryChannels(params);
         assertTrue(sql.contains("stream_id IS NOT NULL"), "should filter for not null stream_id");
     }
+
+    @Test
+    void queryChannels_withVideoResourceType_shouldExcludeDirectories() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("resourceType", "CHANNEL");
+        String sql = provider.queryChannels(params);
+        assertTrue(sql.contains("dc.channel_type = 0"));
+    }
+
+    @Test
+    void queryChannels_withDirectoryResourceType_shouldExcludeVideoChannels() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("resourceType", "DIRECTORY");
+        String sql = provider.queryChannels(params);
+        assertTrue(sql.contains("dc.channel_type != 0"));
+    }
 }

@@ -20,19 +20,27 @@
             style="margin-right: 1rem;"
             type="primary"
             @click="addParentPlatform"
-          >添加
+          >添加上级平台
           </el-button>
         </el-form-item>
         <el-form-item style="float: right;">
           <el-button icon="el-icon-refresh-right" circle @click="refresh()" />
         </el-form-item>
       </el-form>
+      <el-alert
+        title="这里管理本系统主动注册的上级平台"
+        description="本系统作为下级平台向这里配置的平台发起 REGISTER，并通过“通道共享”选择要上报的资源。宇视等主动向本系统注册的平台，请到“设备接入 → 下级平台”管理。"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 12px;"
+      />
       <!--设备列表-->
       <el-table
         size="small"
         :data="platformList"
         style="width: 100%"
-        height="calc(100% - 64px)"
+        height="calc(100% - 124px)"
         :loading="loading"
       >
         <el-table-column prop="name" label="名称" />

@@ -428,6 +428,12 @@ public interface DeviceMapper {
             " FROM wvp_device de" +
             " where 1 = 1 "+
             " <if test='status != null'> AND de.on_line=#{status}</if>"+
+            " <if test='accessType != null and accessType == \"PLATFORM\"'>" +
+            " AND length(device_id) = 20 AND substring(device_id, 11, 3) &gt;= '200'" +
+            " </if>" +
+            " <if test='accessType != null and accessType == \"DEVICE\"'>" +
+            " AND (length(device_id) != 20 OR substring(device_id, 11, 3) &lt; '200')" +
+            " </if>" +
             " <if test='query != null'> AND (" +
             " coalesce(custom_name, name) LIKE concat('%',#{query},'%') escape '/' " +
             " OR device_id LIKE concat('%',#{query},'%') escape '/' " +
@@ -435,7 +441,8 @@ public interface DeviceMapper {
             "</if> " +
             " order by create_time desc, device_id " +
             " </script>")
-    List<Device> getDeviceList(@Param("dataType") Integer dataType, @Param("query") String query, @Param("status") Boolean status);
+    List<Device> getDeviceList(@Param("dataType") Integer dataType, @Param("query") String query,
+                               @Param("status") Boolean status, @Param("accessType") String accessType);
 
     @Select("select * from wvp_device_channel where id = #{id}")
     DeviceChannel getRawChannel(@Param("id") int id);

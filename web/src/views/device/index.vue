@@ -1,7 +1,16 @@
 <template>
   <div id="device" class="app-container">
-    <deviceList v-show="deviceId === null" @show-channel="showChannelList" />
-    <channelList v-if="deviceId !== null" :device-id="deviceId" @show-device="showDevice" />
+    <deviceList
+      v-show="deviceId === null"
+      :access-type="accessType"
+      @show-channel="showChannelList"
+    />
+    <channelList
+      v-if="deviceId !== null"
+      :device-id="deviceId"
+      :access-type="accessType"
+      @show-device="showDevice"
+    />
   </div>
 </template>
 
@@ -18,6 +27,16 @@ export default {
   data() {
     return {
       deviceId: null
+    }
+  },
+  computed: {
+    accessType() {
+      return this.$route.meta.accessType || 'DEVICE'
+    }
+  },
+  watch: {
+    '$route.meta.accessType'() {
+      this.deviceId = null
     }
   },
   methods: {

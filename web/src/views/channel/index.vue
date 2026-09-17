@@ -352,7 +352,7 @@ export default {
       this.$store.dispatch('commonChanel/stopPlayChannel', itemData.gbId).then(data => {
         this.initData()
       }).catch((error) => {
-        if (error.response.status === 402) { // 已经停止过
+        if (error.response && error.response.status === 402) { // 已经停止过
           this.initData()
         } else {
           console.log(error)

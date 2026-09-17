@@ -9,6 +9,7 @@ import com.genersoft.iot.vmp.gb28181.bean.GbCode;
 import com.genersoft.iot.vmp.gb28181.bean.GbSipDate;
 import com.genersoft.iot.vmp.gb28181.bean.SipTransactionInfo;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
+import com.genersoft.iot.vmp.gb28181.task.deviceStatus.DeviceRegisterAttemptManager;
 import com.genersoft.iot.vmp.gb28181.transmit.SIPProcessorObserver;
 import com.genersoft.iot.vmp.gb28181.transmit.SIPSender;
 import com.genersoft.iot.vmp.gb28181.transmit.event.request.ISIPRequestProcessor;
@@ -68,6 +69,9 @@ public class RegisterRequestProcessor extends SIPRequestProcessorParent implemen
 
     @Autowired
     private IRedisCatchStorage redisCatchStorage;
+
+    @Autowired
+    private DeviceRegisterAttemptManager deviceRegisterAttemptManager;
 
 
     @Override
@@ -162,11 +166,14 @@ public class RegisterRequestProcessor extends SIPRequestProcessorParent implemen
             device.setRegisterTimeStamp(System.currentTimeMillis());
             deviceService.online(device);
             redisCatchStorage.updateDeviceRegisterTimeStamp(List.of(device));
+            deviceRegisterAttemptManager.remove(deviceId);
             return;
         }
 
         if (device == null && ObjectUtils.isEmpty(sipConfig.getPassword())) {
-            log.info("[注册请求] 设备：{}, 地址: {}, 公共密码已经禁用，请添加用户信息后注册", deviceId, requestAddress);
+            deviceRegisterAttemptManager.savePendingConfig(deviceId, remoteAddressInfo, getTransport(request));
+            log.info("[注册请求] 设备：{}, 地址: {}, 公共密码已经禁用，请在“国标设备”页面配置该设备的注册密码后重试",
+                    deviceId, requestAddress);
             Response response = getMessageFactory().createResponse(Response.FORBIDDEN, request);
             sipSender.transmitRequest(request.getLocalAddress().getHostAddress(), response);
             return;
@@ -183,7 +190,10 @@ public class RegisterRequestProcessor extends SIPRequestProcessorParent implemen
         }
 
         if (!ObjectUtils.isEmpty(password) && !new DigestServerAuthenticationHelper().doAuthenticatePlainTextPassword(request, password)) {
-            log.info("[注册请求] 设备：{}, 密码/SIP服务器ID错误, 回复403: {}", deviceId, requestAddress);
+            deviceRegisterAttemptManager.saveAuthFailed(deviceId, remoteAddressInfo, getTransport(request),
+                    authHead == null ? null : authHead.getUsername());
+            log.info("[注册请求] 设备：{}, 注册密码或SIP服务器ID/域不一致, 回复403: {}，请在“国标设备”页面核对配置",
+                    deviceId, requestAddress);
             Response response = getMessageFactory().createResponse(Response.FORBIDDEN, request);
             response.setReasonPhrase("wrong password");
             sipSender.transmitRequest(request.getLocalAddress().getHostAddress(), response);
@@ -237,8 +247,14 @@ public class RegisterRequestProcessor extends SIPRequestProcessorParent implemen
         device.setSipTransactionInfo(sipTransactionInfo);
         deviceService.online(device);
         redisCatchStorage.updateDeviceRegisterTimeStamp(List.of(device));
+        deviceRegisterAttemptManager.remove(deviceId);
 
         log.info("[注册成功] deviceId: {}->{}", deviceId, requestAddress);
+    }
+
+    private String getTransport(SIPRequest request) {
+        ViaHeader viaHeader = (ViaHeader) request.getHeader(ViaHeader.NAME);
+        return viaHeader == null ? null : viaHeader.getTransport();
     }
 
     private void cancellationHandler(Device device, SIPRequest request, RemoteAddressInfo remoteAddressInfo,

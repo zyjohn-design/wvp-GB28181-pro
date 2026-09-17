@@ -92,6 +92,18 @@ public enum DeviceTypeEnum {
         return ownerName;
     }
 
+    public static DeviceTypeEnum fromCode(String code) {
+        if (code == null) {
+            return null;
+        }
+        for (DeviceTypeEnum value : values()) {
+            if (value.code.equals(code)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     public void setOwnerName(String ownerName) {
         this.ownerName = ownerName;
     }

@@ -213,6 +213,13 @@ public interface GroupMapper {
             " <foreach collection='groupListForAdd'  item='item'  open='(' separator=',' close=')' > #{item.id}</foreach>" +
             " and exists (select 1 from wvp_common_group w2 where w1.parent_device_id = w2.device_id)" +
             " </script>")
+    @Update(value = " <script>" +
+            " update wvp_common_group w1" +
+            " join wvp_common_group w2 on w1.parent_device_id = w2.device_id" +
+            " set w1.parent_id = w2.id" +
+            " where w1.id in " +
+            " <foreach collection='groupListForAdd'  item='item'  open='(' separator=',' close=')' > #{item.id}</foreach>" +
+            " </script>", databaseId = "mysql")
     void updateParentId(List<Group> groupListForAdd);
 
     @Update(value = " <script>" +
@@ -231,6 +238,18 @@ public interface GroupMapper {
             "               and w1.business_group = w2.device_id" +
             "               and w1.device_id != w1.business_group)" +
             " </script>")
+    @Update(value = " <script>" +
+            " update wvp_common_group w1" +
+            " join wvp_common_group w2" +
+            "   on w2.parent_device_id is null" +
+            "  and w2.device_id = w2.business_group" +
+            "  and w1.business_group = w2.device_id" +
+            "  and w1.device_id != w1.business_group" +
+            " set w1.parent_id = w2.id" +
+            " where w1.parent_device_id is null" +
+            "   and w1.id in " +
+            " <foreach collection='groupListForAdd'  item='item'  open='(' separator=',' close=')' > #{item.id}</foreach>" +
+            " </script>", databaseId = "mysql")
     void updateParentIdWithBusinessGroup(List<Group> groupListForAdd);
 
     @Select(" <script>" +
@@ -277,6 +296,10 @@ public interface GroupMapper {
             " SET g1.parent_id = (SELECT g2.id FROM wvp_common_group g2 WHERE g1.parent_device_id = g2.device_id)" +
             " WHERE g1.alias IS NOT NULL" +
             "   AND EXISTS (SELECT 1 FROM wvp_common_group g2 WHERE g1.parent_device_id = g2.device_id)")
+    @Update(value = " UPDATE wvp_common_group g1" +
+            " JOIN wvp_common_group g2 ON g1.parent_device_id = g2.device_id" +
+            " SET g1.parent_id = g2.id" +
+            " WHERE g1.alias IS NOT NULL", databaseId = "mysql")
     void fixParentId();
 
 }

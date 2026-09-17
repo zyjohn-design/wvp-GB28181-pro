@@ -89,6 +89,11 @@ public class DeviceChannelProvider {
         if (params.get("hasStream") != null && (Boolean) params.get("hasStream")) {
             sqlBuild.append(" AND dc.stream_id IS NOT NULL");
         }
+        if ("CHANNEL".equals(params.get("resourceType"))) {
+            sqlBuild.append(" AND dc.channel_type = 0");
+        } else if ("DIRECTORY".equals(params.get("resourceType"))) {
+            sqlBuild.append(" AND dc.channel_type != 0");
+        }
         if (params.get("online") != null && (Boolean)params.get("online")) {
             sqlBuild.append(" AND coalesce(gb_status, status) = 'ON'");
         }

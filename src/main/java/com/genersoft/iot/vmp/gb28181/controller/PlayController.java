@@ -92,6 +92,12 @@ public class PlayController {
 		Assert.notNull(device, "设备不存在");
 		DeviceChannel channel = deviceChannelService.getOne(deviceId, channelId);
 		Assert.notNull(channel, "通道不存在");
+		if (!channel.isPlayable()) {
+			throw new ControllerException(ErrorCode.ERROR400.getCode(), channel.getPlayDisabledReason());
+		}
+		if ("OFF".equalsIgnoreCase(channel.getStatus())) {
+			throw new ControllerException(ErrorCode.ERROR400.getCode(), "视频通道已离线，无法播放");
+		}
 
 		DeferredResult<WVPResult<StreamContent>> result = new DeferredResult<>(userSetting.getPlayTimeout().longValue());
 
@@ -273,4 +279,3 @@ public class PlayController {
 	}
 
 }
-

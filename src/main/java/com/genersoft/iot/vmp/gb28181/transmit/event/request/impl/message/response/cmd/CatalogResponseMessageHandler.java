@@ -125,20 +125,21 @@ public class CatalogResponseMessageHandler extends SIPRequestProcessorParent imp
                         if (channel.getParentId() != null && channel.getParentId().equals(sipConfig.getId())) {
                             channel.setParentId(null);
                         }
+                        channel.identifyResourceType();
                         // 解析通道类型
-                        if (channel.getDeviceId().length() <= 8) {
+                        if (channel.getChannelType() == DeviceChannel.RESOURCE_REGION) {
                             // 行政区划
                             Region region = Region.getInstance(channel);
                             regionList.add(region);
-                            channel.setChannelType(1);
-                        }else if (channel.getDeviceId().length() == 20){
+                        }else if (channel.getChannelType() == DeviceChannel.RESOURCE_GROUP){
                             // 业务分组/虚拟组织
                             Group group = Group.getInstance(channel);
                             if (group != null) {
                                 channel.setParental(1);
-                                channel.setChannelType(2);
                                 groupList.add(group);
                             }
+                        }
+                        if (channel.getDeviceId().length() == 20) {
                             if (channel.getLongitude() != null && channel.getLatitude() != null && channel.getLongitude() > 0 && channel.getLatitude() > 0) {
                                 Double[] wgs84Position = Coordtransform.GCJ02ToWGS84(channel.getLongitude(), channel.getLatitude());
                                 channel.setGbLongitude(wgs84Position[0]);

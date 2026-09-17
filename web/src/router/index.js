@@ -112,7 +112,13 @@ export const constantRoutes = [
         path: '/device',
         name: 'Device',
         component: () => import('@/views/device/index'),
-        meta: { title: '国标设备', icon: 'device' }
+        meta: { title: '国标设备', icon: 'device', accessType: 'DEVICE' }
+      },
+      {
+        path: '/lowerPlatform',
+        name: 'LowerPlatform',
+        component: () => import('@/views/device/index'),
+        meta: { title: '下级平台', icon: 'platform', accessType: 'PLATFORM' }
       },
       {
         hidden: true,
@@ -234,10 +240,10 @@ export const constantRoutes = [
     redirect: '/platform',
     children: [
       {
-        path: '',
-        name: 'Platform',
-        component: () => import('@/views/platform/index'),
-        meta: { title: '国标级联', icon: 'platform' }
+      path: '',
+      name: 'Platform',
+      component: () => import('@/views/platform/index'),
+      meta: { title: '上级平台', icon: 'platform' }
       }
     ]
   },

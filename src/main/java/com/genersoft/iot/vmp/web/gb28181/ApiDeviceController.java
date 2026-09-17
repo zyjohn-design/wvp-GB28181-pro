@@ -71,7 +71,7 @@ public class ApiDeviceController {
             devices = deviceService.getAllByStatus(online);
             result.put("DeviceCount", devices.size());
         }else {
-            PageInfo<Device> deviceList = deviceService.getAll(start/limit, limit,null, online);
+            PageInfo<Device> deviceList = deviceService.getAll(start/limit, limit,null, online, null);
             result.put("DeviceCount", deviceList.getTotal());
             devices = deviceList.getList();
         }

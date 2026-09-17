@@ -53,7 +53,16 @@ service.interceptors.response.use(
   },
   error => {
     console.log(error) // for debug
-    if (error.response.status === 401) {
+    const response = error.response
+    const config = error.config
+    // 部分专网防火墙会重置已复用的空闲 TCP 连接。GET 是幂等请求，遇到没有
+    // HTTP 响应的网络错误时仅重试一次；写请求不重试，避免重复提交。
+    if (!response && config && config.method === 'get' && !config.__networkRetried) {
+      config.__networkRetried = true
+      return new Promise(resolve => setTimeout(resolve, 200))
+        .then(() => service(config))
+    }
+    if (response && response.status === 401) {
       if (!showLoginConfirm && store.getters.showConfirmBoxForLoginLose) {
         // to re-login
         showLoginConfirm = true
@@ -75,11 +84,11 @@ service.interceptors.response.use(
 
         })
       }
-    }else {
+    } else {
       if (!store.getters.showConfirmBoxForLoginLose) {
-        return
+        return Promise.reject(error)
       }
-      let data = error.response.data
+      const data = response && response.data
       if (data && data.msg) {
         Message.error({
           message: data.msg,
@@ -92,7 +101,7 @@ service.interceptors.response.use(
         })
       }
     }
-    // return Promise.reject(error)
+    return Promise.reject(error)
   }
 )
 
