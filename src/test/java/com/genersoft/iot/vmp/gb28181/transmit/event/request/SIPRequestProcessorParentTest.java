@@ -28,6 +28,28 @@ class SIPRequestProcessorParentTest {
     }
 
     @Test
+    void fallsBackToGb18030WhenUtf8SettingReceivesGbkBytes() throws Exception {
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<Response><Name>03-硚口大队</Name></Response>";
+        byte[] content = xml.getBytes(Charset.forName("GBK"));
+
+        assertEquals("GB18030", SIPRequestProcessorParent.resolveInboundCharset("UTF-8", content));
+
+        Request request = mock(Request.class);
+        ContentLengthHeader contentLength = mock(ContentLengthHeader.class);
+        when(contentLength.getContentLength()).thenReturn(content.length);
+        when(request.getContentLength()).thenReturn(contentLength);
+        when(request.getRawContent()).thenReturn(content);
+        RequestEvent event = mock(RequestEvent.class);
+        when(event.getRequest()).thenReturn(request);
+
+        SIPRequestProcessorParent processor = new SIPRequestProcessorParent() { };
+        Element root = processor.getRootElement(event, "UTF-8");
+
+        assertEquals("03-硚口大队", root.elementTextTrim("Name"));
+    }
+
+    @Test
     void decodesGbkExtensionCharacterWhenDeviceDeclaresGb2312() throws Exception {
         String xml = "<?xml version=\"1.0\" encoding=\"GB2312\"?>"
                 + "<Response><Name>03-硚口大队</Name></Response>";

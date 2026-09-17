@@ -25,6 +25,12 @@ public interface RegionMapper {
             " WHERE id = #{id}")
     int update(Region region);
 
+    /**
+     * 仅修复目录名称，不改动父子关系等人工维护字段。
+     */
+    @Update("UPDATE wvp_common_region SET name=#{name}, update_time=#{updateTime} WHERE id=#{id}")
+    int updateName(Region region);
+
     @Select(value = {" <script>" +
             "SELECT *  from wvp_common_region WHERE 1=1 " +
             " <if test='query != null'> AND (device_id LIKE concat('%',#{query},'%') escape '/' OR name LIKE concat('%',#{query},'%') escape '/')</if> " +
