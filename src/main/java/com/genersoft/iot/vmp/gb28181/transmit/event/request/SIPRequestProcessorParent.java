@@ -26,6 +26,11 @@ import javax.sip.message.MessageFactory;
 import javax.sip.message.Request;
 import javax.sip.message.Response;
 import java.io.ByteArrayInputStream;
+import java.io.StringReader;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -192,9 +197,10 @@ public abstract class SIPRequestProcessorParent {
 			return null;
 		}
 
-		if (charset == null) {
-			charset = "gb2312";
-		}
+		// 目录编码在现场经常配置成 UTF-8，但宇视仍按 GBK 发送扩展汉字（例如“硚”）。
+		// 仅依赖设备配置会在 UTF-8 解码时得到“�~”。先用严格解码探测原始字节，
+		// 对声明为 UTF-8 但实际不是合法 UTF-8 的内容自动回退到 GB18030。
+		charset = resolveInboundCharset(charset, rawContent);
 		SAXReader reader = new SAXReader();
 		reader.setEncoding(charset);
 		// 对海康出现的未转义字符做处理。
@@ -242,5 +248,44 @@ public abstract class SIPRequestProcessorParent {
 		return xml.getRootElement();
 	}
 
+	/**
+	 * GB18030向下兼容GBK和GB2312。部分平台虽然在XML中声明GB2312，实际会发送
+	 * “硚”等GBK扩展字符；用严格GB2312解码会产生替换字符“�”。这里只放宽入站
+	 * XML解码，设备保存的字符集和出站SIP报文配置均不改变。
+	 */
+	static String resolveInboundCharset(String charset) {
+		if (ObjectUtils.isEmpty(charset)
+				|| "GB2312".equalsIgnoreCase(charset)
+				|| "GBK".equalsIgnoreCase(charset)
+				|| "GB18030".equalsIgnoreCase(charset)) {
+			return "GB18030";
+		}
+		return charset;
+	}
+
+	static String resolveInboundCharset(String charset, byte[] rawContent) {
+		String configured = resolveInboundCharset(charset);
+		if (rawContent == null || rawContent.length == 0) {
+			return configured;
+		}
+
+		// GB18030 兼容 GBK/GB2312，优先保证国标中文扩展字符可读。
+		if ("UTF-8".equalsIgnoreCase(charset) && !isStrictlyDecodable(rawContent, "UTF-8")) {
+			return "GB18030";
+		}
+		return configured;
+	}
+
+	private static boolean isStrictlyDecodable(byte[] content, String charset) {
+		try {
+			Charset.forName(charset).newDecoder()
+					.onMalformedInput(CodingErrorAction.REPORT)
+					.onUnmappableCharacter(CodingErrorAction.REPORT)
+					.decode(ByteBuffer.wrap(content));
+			return true;
+		} catch (CharacterCodingException | RuntimeException e) {
+			return false;
+		}
+	}
 
 }

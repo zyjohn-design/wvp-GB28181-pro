@@ -218,6 +218,21 @@ public class RegionServiceImpl implements IRegionService {
         if (!regionListInDb.isEmpty()) {
             for (Region region : regionListInDb) {
                 regionMapForVerification.remove(region.getDeviceId());
+
+                // 早期版本在宇视以 GBK 发送、设备配置为 GB2312/UTF-8 时，
+                // 可能把扩展汉字保存成“�~”等替换字符。目录已存在时原逻辑
+                // 不会更新名称，导致后续即使正确解码也无法修复历史数据。
+                Region incoming = regionList.stream()
+                        .filter(item -> Objects.equals(item.getDeviceId(), region.getDeviceId()))
+                        .findFirst().orElse(null);
+                if (incoming != null && hasReplacementCharacter(region.getName())
+                        && !hasReplacementCharacter(incoming.getName())
+                        && !ObjectUtils.isEmpty(incoming.getName())) {
+                    incoming.setId(region.getId());
+                    incoming.setUpdateTime(DateUtil.getNow());
+                    regionMapper.updateName(incoming);
+                    log.info("[行政区划名称修复] {}: {} -> {}", region.getDeviceId(), region.getName(), incoming.getName());
+                }
             }
         }
         if (!regionMapForVerification.isEmpty()) {
@@ -227,6 +242,10 @@ public class RegionServiceImpl implements IRegionService {
         }
 
         return true;
+    }
+
+    static boolean hasReplacementCharacter(String value) {
+        return value != null && value.indexOf('\uFFFD') >= 0;
     }
 
     @Override
