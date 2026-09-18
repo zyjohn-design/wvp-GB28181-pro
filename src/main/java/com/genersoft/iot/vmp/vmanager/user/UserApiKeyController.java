@@ -9,6 +9,7 @@ import com.genersoft.iot.vmp.storager.dao.dto.User;
 import com.genersoft.iot.vmp.storager.dao.dto.UserApiKey;
 import com.genersoft.iot.vmp.utils.DateUtil;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
+import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import com.github.pagehelper.PageInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -166,7 +167,7 @@ public class UserApiKeyController {
     @Operation(summary = "重置用户ApiKey", security = @SecurityRequirement(name = JwtUtils.HEADER))
     @Parameter(name = "id", description = "用户ApiKeyId", required = true)
     @Transactional
-    public void reset(@RequestParam(required = true) Integer id) {
+    public WVPResult<String> reset(@RequestParam(required = true) Integer id) {
         // 获取当前登录用户id
         int currenRoleId = SecurityUtils.getUserInfo().getRole().getId();
         if (currenRoleId != 1) {
@@ -201,6 +202,7 @@ public class UserApiKeyController {
         if (resetResult <= 0) {
             throw new ControllerException(ErrorCode.ERROR100);
         }
+        return WVPResult.success(apiKey);
     }
 
     @PostMapping("/remark")
