@@ -4,11 +4,13 @@ import com.genersoft.iot.vmp.conf.SipConfig;
 import com.genersoft.iot.vmp.gb28181.SipLayer;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.bean.SipTransactionInfo;
+import com.genersoft.iot.vmp.gb28181.utils.SipCharsetUtils;
 import com.genersoft.iot.vmp.gb28181.utils.SipUtils;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
 import com.genersoft.iot.vmp.utils.EnvUtil;
 import com.genersoft.iot.vmp.utils.GitUtil;
 import com.genersoft.iot.vmp.utils.IpPortUtil;
+import gov.nist.javax.sip.message.MessageFactoryImpl;
 import gov.nist.javax.sip.message.SIPRequest;
 import gov.nist.javax.sip.message.SIPResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,7 +71,7 @@ public class SIPRequestHeaderProvider {
 		// ceq
 		CSeqHeader cSeqHeader = SipFactory.getInstance().createHeaderFactory().createCSeqHeader(redisCatchStorage.getCSEQ(), Request.MESSAGE);
 
-		request = SipFactory.getInstance().createMessageFactory().createRequest(requestURI, Request.MESSAGE, callIdHeader, cSeqHeader, fromHeader,
+		request = createMessageFactory(device).createRequest(requestURI, Request.MESSAGE, callIdHeader, cSeqHeader, fromHeader,
 				toHeader, viaHeaders, maxForwards);
 
 		request.addHeader(SipUtils.createUserAgentHeader(gitUtil));
@@ -77,6 +79,17 @@ public class SIPRequestHeaderProvider {
 		ContentTypeHeader contentTypeHeader = SipFactory.getInstance().createHeaderFactory().createContentTypeHeader("Application", "MANSCDP+xml");
 		request.setContent(content, contentTypeHeader);
 		return request;
+	}
+
+	/**
+	 * 创建发送给国标设备/下级平台的MESSAGE请求，内容编码使用设备上配置的字符集，
+	 * GB2312/GBK统一按GB18030编码，避免扩展汉字（如“硚”）被编码成'?'
+	 */
+	private MessageFactoryImpl createMessageFactory(Device device) throws PeerUnavailableException {
+		MessageFactoryImpl messageFactory = (MessageFactoryImpl) SipFactory.getInstance().createMessageFactory();
+		messageFactory.setDefaultContentEncodingCharset(
+				SipCharsetUtils.resolveOutbound(device == null ? null : device.getCharset()));
+		return messageFactory;
 	}
 
 	public Request createInviteRequest(Device device, String channelId, String content, String viaTag, String fromTag, String toTag, String ssrc, CallIdHeader callIdHeader) throws ParseException, InvalidArgumentException, PeerUnavailableException {

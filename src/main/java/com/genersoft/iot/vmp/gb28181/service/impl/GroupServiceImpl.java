@@ -8,6 +8,7 @@ import com.genersoft.iot.vmp.gb28181.event.EventPublisher;
 import com.genersoft.iot.vmp.gb28181.event.subscribe.catalog.CatalogEvent;
 import com.genersoft.iot.vmp.gb28181.service.IGbChannelService;
 import com.genersoft.iot.vmp.gb28181.service.IGroupService;
+import com.genersoft.iot.vmp.gb28181.utils.SipCharsetUtils;
 import com.genersoft.iot.vmp.utils.DateUtil;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
 import com.github.pagehelper.PageHelper;
@@ -249,7 +250,17 @@ public class GroupServiceImpl implements IGroupService {
         List<Group> groupListInDb = groupManager.queryInGroupListByDeviceId(groupList);
         if (!groupListInDb.isEmpty()) {
             for (Group group : groupListInDb) {
-                groupMapForVerification.remove(group.getDeviceId());
+                Group incoming = groupMapForVerification.remove(group.getDeviceId());
+                // 历史数据修复：早期字符集处理不当时，名称中会保存“�”这类替换字符，
+                // 目录已存在时原逻辑不会更新名称，导致重新同步也无法修复。
+                if (incoming != null && SipCharsetUtils.isGarbled(group.getName())
+                        && !SipCharsetUtils.isGarbled(incoming.getName())
+                        && !ObjectUtils.isEmpty(incoming.getName())) {
+                    incoming.setId(group.getId());
+                    incoming.setUpdateTime(DateUtil.getNow());
+                    groupManager.updateName(incoming);
+                    log.info("[分组名称修复] {}: {} -> {}", group.getDeviceId(), group.getName(), incoming.getName());
+                }
             }
         }
         if (!groupMapForVerification.isEmpty()) {

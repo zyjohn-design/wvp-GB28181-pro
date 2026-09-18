@@ -3,6 +3,7 @@ package com.genersoft.iot.vmp.gb28181.transmit.cmd;
 import com.genersoft.iot.vmp.conf.SipConfig;
 import com.genersoft.iot.vmp.gb28181.SipLayer;
 import com.genersoft.iot.vmp.gb28181.bean.*;
+import com.genersoft.iot.vmp.gb28181.utils.SipCharsetUtils;
 import com.genersoft.iot.vmp.gb28181.utils.SipUtils;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
 import com.genersoft.iot.vmp.utils.GitUtil;
@@ -201,7 +202,7 @@ public class SIPRequestHeaderPlarformProvider {
 		CSeqHeader cSeqHeader = SipFactory.getInstance().createHeaderFactory().createCSeqHeader(redisCatchStorage.getCSEQ(), Request.MESSAGE);
 		MessageFactoryImpl messageFactory = (MessageFactoryImpl) SipFactory.getInstance().createMessageFactory();
 		// 设置编码， 防止中文乱码
-		messageFactory.setDefaultContentEncodingCharset(parentPlatform.getCharacterSet());
+		messageFactory.setDefaultContentEncodingCharset(SipCharsetUtils.resolveOutbound(parentPlatform.getCharacterSet()));
 		request = messageFactory.createRequest(requestURI, Request.MESSAGE, callIdHeader, cSeqHeader, fromHeader,
 				toHeader, viaHeaders, maxForwards);
 
@@ -237,8 +238,8 @@ public class SIPRequestHeaderPlarformProvider {
 		// ceq
 		CSeqHeader cSeqHeader = SipFactory.getInstance().createHeaderFactory().createCSeqHeader(redisCatchStorage.getCSEQ(), Request.NOTIFY);
 		MessageFactoryImpl messageFactory = (MessageFactoryImpl) SipFactory.getInstance().createMessageFactory();
-		// 设置编码， 防止中文乱码
-		messageFactory.setDefaultContentEncodingCharset("gb2312");
+		// 设置编码， 防止中文乱码。以级联平台上配置的字符集为准，GB2312/GBK统一按GB18030编码
+		messageFactory.setDefaultContentEncodingCharset(SipCharsetUtils.resolveOutbound(parentPlatform.getCharacterSet()));
 
 		CallIdHeader callIdHeader = SipFactory.getInstance().createHeaderFactory().createCallIdHeader(subscribeInfo.getTransactionInfo() != null ? subscribeInfo.getTransactionInfo().getCallId(): subscribeInfo.getSimulatedCallId());
 

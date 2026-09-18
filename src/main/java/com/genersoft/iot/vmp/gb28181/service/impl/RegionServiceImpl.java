@@ -2,6 +2,7 @@ package com.genersoft.iot.vmp.gb28181.service.impl;
 
 import com.genersoft.iot.vmp.common.CivilCodePo;
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
+import com.genersoft.iot.vmp.gb28181.utils.SipCharsetUtils;
 import com.genersoft.iot.vmp.gb28181.bean.CommonGBChannel;
 import com.genersoft.iot.vmp.gb28181.bean.Region;
 import com.genersoft.iot.vmp.gb28181.bean.RegionTree;
@@ -245,7 +246,7 @@ public class RegionServiceImpl implements IRegionService {
     }
 
     static boolean hasReplacementCharacter(String value) {
-        return value != null && value.indexOf('\uFFFD') >= 0;
+        return SipCharsetUtils.isGarbled(value);
     }
 
     @Override

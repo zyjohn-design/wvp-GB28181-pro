@@ -24,6 +24,19 @@ class MysqlParentIdUpdateSqlTest {
         assertMysqlSelfJoin(GroupMapper.class.getMethod("fixParentId"), "wvp_common_group");
     }
 
+    @Test
+    void groupNameRepairUsesSingleTableUpdate() throws NoSuchMethodException {
+        Update[] updates = GroupMapper.class.getMethod("updateName", com.genersoft.iot.vmp.gb28181.bean.Group.class)
+                .getAnnotationsByType(Update.class);
+        assertTrue(updates.length == 1, "updateName 应该只有一条通用SQL");
+        String sql = String.join(" ", updates[0].value()).toLowerCase();
+        assertTrue(sql.contains("update wvp_common_group"), sql);
+        assertTrue(sql.contains("set name=#{name}"), sql);
+        assertTrue(sql.contains("where id = #{id}"), sql);
+        assertFalse(sql.contains("join"), sql);
+        assertFalse(sql.contains("select"), sql);
+    }
+
     private void assertMysqlSelfJoin(Method method, String tableName) {
         Update mysqlUpdate = Arrays.stream(method.getAnnotationsByType(Update.class))
                 .filter(update -> "mysql".equals(update.databaseId()))

@@ -2,6 +2,7 @@ package com.genersoft.iot.vmp.gb28181.transmit.event.request.impl.message.respon
 
 import com.genersoft.iot.vmp.conf.SipConfig;
 import com.genersoft.iot.vmp.gb28181.bean.*;
+import com.genersoft.iot.vmp.gb28181.utils.SipCharsetUtils;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceChannelService;
 import com.genersoft.iot.vmp.gb28181.service.IGroupService;
 import com.genersoft.iot.vmp.gb28181.service.IRegionService;
@@ -118,7 +119,7 @@ public class CatalogResponseMessageHandler extends SIPRequestProcessorParent imp
                         // 从xml解析内容到 DeviceChannel 对象
                         DeviceChannel channel = DeviceChannel.decode(itemDevice);
                         if (channel.getDeviceId() == null) {
-                            log.info("[收到目录订阅]：但是解析失败 {}", new String(evt.getRequest().getRawContent()));
+                            log.info("[收到目录订阅]：但是解析失败 {}", SipCharsetUtils.decode(evt.getRequest().getRawContent(), device.getCharset()));
                             continue;
                         }
                         channel.setDataDeviceId(device.getId());

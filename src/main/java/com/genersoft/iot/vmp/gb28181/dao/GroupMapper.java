@@ -138,6 +138,11 @@ public interface GroupMapper {
             " WHERE parent_id = #{parentId}")
     int updateChild(@Param("parentId") Integer parentId, Group group);
 
+    @Update(" UPDATE wvp_common_group " +
+            " SET name=#{name}, update_time=#{updateTime} " +
+            " WHERE id = #{id}")
+    int updateName(Group group);
+
     @Select(" <script>" +
             " SELECT * from wvp_common_group " +
             " where device_id in " +
