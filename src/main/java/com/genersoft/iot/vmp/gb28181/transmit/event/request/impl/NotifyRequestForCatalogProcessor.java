@@ -9,6 +9,7 @@ import com.genersoft.iot.vmp.gb28181.service.IDeviceChannelService;
 import com.genersoft.iot.vmp.gb28181.service.IGbChannelService;
 import com.genersoft.iot.vmp.gb28181.session.CatalogDataManager;
 import com.genersoft.iot.vmp.gb28181.transmit.event.request.SIPRequestProcessorParent;
+import com.genersoft.iot.vmp.gb28181.utils.SipCharsetUtils;
 import com.genersoft.iot.vmp.gb28181.utils.SipUtils;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
 import com.genersoft.iot.vmp.utils.Coordtransform;
@@ -123,7 +124,7 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
                         try {
                             catalogChannelEvent = CatalogChannelEvent.decode(itemDevice);
 							if (catalogChannelEvent.getChannel() == null) {
-								log.info("[解析CatalogChannelEvent]成功：但是解析通道信息失败， 原文如下： \n{}", new String(evt.getRequest().getRawContent()));
+								log.info("[解析CatalogChannelEvent]成功：但是解析通道信息失败， 原文如下： \n{}", SipCharsetUtils.decode(evt.getRequest().getRawContent(), device.getCharset()));
 								continue;
 							}
 							catalogChannelEvent.getChannel().setDataDeviceId(device.getId());
@@ -143,7 +144,7 @@ public class NotifyRequestForCatalogProcessor extends SIPRequestProcessorParent 
                         } catch (InvocationTargetException | NoSuchMethodException | InstantiationException |
                                  IllegalAccessException e) {
                             log.error("[解析CatalogChannelEvent]失败，", e);
-                            log.error("[解析CatalogChannelEvent]失败原文: \n{}", new String(evt.getRequest().getRawContent(), Charset.forName(device.getCharset())));
+                            log.error("[解析CatalogChannelEvent]失败原文: \n{}", SipCharsetUtils.decode(evt.getRequest().getRawContent(), device.getCharset()));
 							continue;
                         }
 						if (log.isDebugEnabled()){

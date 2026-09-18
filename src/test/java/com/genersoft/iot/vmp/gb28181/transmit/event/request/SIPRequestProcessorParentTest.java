@@ -4,27 +4,26 @@ import org.junit.jupiter.api.Test;
 import org.dom4j.Element;
 
 import javax.sip.RequestEvent;
-import javax.sip.header.ContentLengthHeader;
 import javax.sip.message.Request;
 import java.nio.charset.Charset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * 校验SIP请求处理入口的XML解析已统一到{@link com.genersoft.iot.vmp.gb28181.utils.XmlUtil}，
+ * 并且不再依赖设备上配置的字符集
+ */
 class SIPRequestProcessorParentTest {
 
-    @Test
-    void usesGb18030ForChineseLegacyCharsets() {
-        assertEquals("GB18030", SIPRequestProcessorParent.resolveInboundCharset(null));
-        assertEquals("GB18030", SIPRequestProcessorParent.resolveInboundCharset("GB2312"));
-        assertEquals("GB18030", SIPRequestProcessorParent.resolveInboundCharset("gbk"));
-        assertEquals("GB18030", SIPRequestProcessorParent.resolveInboundCharset("GB18030"));
-    }
-
-    @Test
-    void preservesUtf8Configuration() {
-        assertEquals("UTF-8", SIPRequestProcessorParent.resolveInboundCharset("UTF-8"));
+    private RequestEvent mockEvent(byte[] content) {
+        Request request = mock(Request.class);
+        when(request.getRawContent()).thenReturn(content);
+        RequestEvent event = mock(RequestEvent.class);
+        when(event.getRequest()).thenReturn(request);
+        return event;
     }
 
     @Test
@@ -33,39 +32,40 @@ class SIPRequestProcessorParentTest {
                 + "<Response><Name>03-硚口大队</Name></Response>";
         byte[] content = xml.getBytes(Charset.forName("GBK"));
 
-        assertEquals("GB18030", SIPRequestProcessorParent.resolveInboundCharset("UTF-8", content));
-
-        Request request = mock(Request.class);
-        ContentLengthHeader contentLength = mock(ContentLengthHeader.class);
-        when(contentLength.getContentLength()).thenReturn(content.length);
-        when(request.getContentLength()).thenReturn(contentLength);
-        when(request.getRawContent()).thenReturn(content);
-        RequestEvent event = mock(RequestEvent.class);
-        when(event.getRequest()).thenReturn(request);
-
         SIPRequestProcessorParent processor = new SIPRequestProcessorParent() { };
-        Element root = processor.getRootElement(event, "UTF-8");
+        Element root = processor.getRootElement(mockEvent(content), "UTF-8");
 
         assertEquals("03-硚口大队", root.elementTextTrim("Name"));
     }
 
     @Test
-    void decodesGbkExtensionCharacterWhenDeviceDeclaresGb2312() throws Exception {
+    void decodesUtf8BytesWhenDeviceDeclaresGb2312() throws Exception {
         String xml = "<?xml version=\"1.0\" encoding=\"GB2312\"?>"
                 + "<Response><Name>03-硚口大队</Name></Response>";
-        byte[] content = xml.getBytes(Charset.forName("GBK"));
-
-        Request request = mock(Request.class);
-        ContentLengthHeader contentLength = mock(ContentLengthHeader.class);
-        when(contentLength.getContentLength()).thenReturn(content.length);
-        when(request.getContentLength()).thenReturn(contentLength);
-        when(request.getRawContent()).thenReturn(content);
-        RequestEvent event = mock(RequestEvent.class);
-        when(event.getRequest()).thenReturn(request);
+        byte[] content = xml.getBytes(Charset.forName("UTF-8"));
 
         SIPRequestProcessorParent processor = new SIPRequestProcessorParent() { };
-        Element root = processor.getRootElement(event, "GB2312");
+        Element root = processor.getRootElement(mockEvent(content), "GB2312");
 
         assertEquals("03-硚口大队", root.elementTextTrim("Name"));
+    }
+
+    @Test
+    void decodesGbkExtensionCharacterWithoutCharsetConfig() throws Exception {
+        String xml = "<?xml version=\"1.0\" encoding=\"GB2312\"?>"
+                + "<Response><Name>03-硚口大队</Name></Response>";
+        byte[] content = xml.getBytes(Charset.forName("GB18030"));
+
+        SIPRequestProcessorParent processor = new SIPRequestProcessorParent() { };
+        Element root = processor.getRootElement(mockEvent(content));
+
+        assertEquals("03-硚口大队", root.elementTextTrim("Name"));
+    }
+
+    @Test
+    void returnsNullWhenContentIsEmpty() throws Exception {
+        SIPRequestProcessorParent processor = new SIPRequestProcessorParent() { };
+        assertNull(processor.getRootElement(mockEvent(new byte[0])));
+        assertNull(processor.getRootElement(mockEvent(null)));
     }
 }

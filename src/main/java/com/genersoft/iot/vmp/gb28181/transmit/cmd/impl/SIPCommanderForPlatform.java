@@ -12,6 +12,7 @@ import com.genersoft.iot.vmp.gb28181.session.SipInviteSessionManager;
 import com.genersoft.iot.vmp.gb28181.transmit.SIPSender;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommanderForPlatform;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.SIPRequestHeaderPlarformProvider;
+import com.genersoft.iot.vmp.gb28181.utils.SipCharsetUtils;
 import com.genersoft.iot.vmp.gb28181.utils.SipUtils;
 import com.genersoft.iot.vmp.media.bean.MediaServer;
 import com.genersoft.iot.vmp.media.event.hook.HookSubscribe;
@@ -466,7 +467,7 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
         MessageFactoryImpl messageFactory = (MessageFactoryImpl) SipFactory.getInstance().createMessageFactory();
         String characterSet = parentPlatform.getCharacterSet();
         // 设置编码， 防止中文乱码
-        messageFactory.setDefaultContentEncodingCharset(characterSet);
+        messageFactory.setDefaultContentEncodingCharset(SipCharsetUtils.resolveOutbound(characterSet));
 
         SIPRequest notifyRequest = headerProviderPlatformProvider.createNotifyRequest(parentPlatform, catalogXmlContent, subscribeInfo);
 

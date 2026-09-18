@@ -14,13 +14,14 @@ import org.springframework.util.ReflectionUtils;
 
 import javax.sip.RequestEvent;
 import javax.sip.message.Request;
-import java.io.ByteArrayInputStream;
 import java.io.StringReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 基于dom4j的工具包
@@ -28,20 +29,21 @@ import java.util.*;
 @Slf4j
 public class XmlUtil {
 
+    private static final Pattern XML_PROLOG_PATTERN = Pattern.compile("<\\?xml[^>]*\\?>", Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern ILLEGAL_AMPERSAND_PATTERN =
+            Pattern.compile("&(?!(#[0-9]+|#[xX][0-9a-fA-F]+|lt|gt|amp|apos|quot);)");
+
     /**
      * 解析XML为Document对象
      */
     public static Element parseXml(String xml) {
-        Document document = null;
-        //
-        StringReader sr = new StringReader(xml);
-        SAXReader saxReader = new SAXReader();
         try {
-            document = saxReader.read(sr);
+            return parseXmlContent(xml);
         } catch (DocumentException e) {
             log.error("解析失败", e);
+            return null;
         }
-        return null == document ? null : document.getRootElement();
     }
 
     /**
@@ -209,14 +211,70 @@ public class XmlUtil {
         return getRootElement(request.getRawContent(), charset);
     }
 
+    /**
+     * 国标XML报文解析的统一入口。
+     * <p>
+     * 字符集由{@link SipCharsetUtils}按实际字节探测，不再依赖设备/平台配置以及XML声明，
+     * 解析前会去掉XML声明中的encoding属性并使用字符流解析，避免解析器按声明的字符集二次解码。
+     *
+     * @param content 原始报文字节
+     * @param charset 设备/平台上配置的字符集，仅作为参考
+     */
     public static Element getRootElement(byte[] content, String charset) throws DocumentException {
-        if (charset == null) {
-            charset = "gb2312";
+        if (content == null || content.length == 0) {
+            return null;
         }
+        String xmlContent = SipCharsetUtils.decode(content, charset);
+        if (ObjectUtils.isEmpty(xmlContent.trim())) {
+            return null;
+        }
+        return parseXmlContent(xmlContent);
+    }
+
+    /**
+     * 解析已经解码为字符串的国标XML，包含对现场设备常见的不规范XML的兼容处理
+     */
+    public static Element parseXmlContent(String xmlContent) throws DocumentException {
+        String text = removeEncodingDeclaration(xmlContent);
+        // 兼容部分设备未对 & 做转义的问题
+        text = escapeIllegalAmpersand(text);
         SAXReader reader = new SAXReader();
-        reader.setEncoding(charset);
-        Document xml = reader.read(new ByteArrayInputStream(content));
-        return xml.getRootElement();
+        try {
+            return reader.read(new StringReader(text)).getRootElement();
+        } catch (DocumentException e) {
+            log.warn("[xml解析异常] 尝试兼容性处理, 原文如下： \r\n{}", text);
+            // 兼容海康的address字段带有<破坏xml结构导致无法解析xml的问题
+            StringBuilder stringBuilder = new StringBuilder();
+            for (String line : text.split("\\r?\\n")) {
+                if (line.trim().startsWith("<Address")) {
+                    continue;
+                }
+                stringBuilder.append(line);
+            }
+            return reader.read(new StringReader(stringBuilder.toString())).getRootElement();
+        }
+    }
+
+    /**
+     * 内容已按字节探测的字符集解码完成，这里去掉XML声明中的encoding，防止解析器按错误的声明再次解码；
+     * 同时去掉声明之前的空白字符与BOM，避免“Content is not allowed in prolog”。
+     */
+    static String removeEncodingDeclaration(String xmlContent) {
+        String text = xmlContent.replaceFirst("^[\\uFEFF\\s]+", "");
+        Matcher matcher = XML_PROLOG_PATTERN.matcher(text);
+        if (matcher.find() && matcher.start() == 0) {
+            String prolog = matcher.group();
+            String newProlog = prolog.replaceAll("(?i)\\s+encoding\\s*=\\s*(\"[^\"]*\"|'[^']*')", "");
+            return newProlog + text.substring(matcher.end());
+        }
+        return text;
+    }
+
+    /**
+     * 把未转义的 & 转义为 &amp;，保留已经合法的实体引用
+     */
+    static String escapeIllegalAmpersand(String xmlContent) {
+        return ILLEGAL_AMPERSAND_PATTERN.matcher(xmlContent).replaceAll("&amp;");
     }
 
     private enum ChannelType{
