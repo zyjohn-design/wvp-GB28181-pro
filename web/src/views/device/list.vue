@@ -284,15 +284,15 @@ export default {
       return this.isPlatformPage ? '添加下级平台' : '添加国标设备'
     },
     idColumnLabel() {
-      return this.isPlatformPage ? '下级平台编号' : '设备编号'
+      return '设备/平台编号'
     },
     accessGuideTitle() {
-      return this.isPlatformPage ? '这里管理向本系统注册的下级平台' : '这里管理直接接入的 IPC、NVR 等国标设备'
+      return this.isPlatformPage ? '下级平台接入信息' : '国标设备接入信息'
     },
     accessGuideDescription() {
       return this.isPlatformPage
-        ? '在宇视等下级平台中配置本系统为“上级平台”，完成平台注册后，还必须配置资源共享；平台上报的目录不能播放，只有共享的在线摄像机通道可以播放。'
-        : '设备需使用自身20位国标编号向本系统注册。独立摄像机或NVR在这里管理；需要接入组织目录和大量摄像机的平台，请到“下级平台”。'
+        ? '与“国标设备”共用同一份接入数据，在任一页新增、编辑或删除后均会同步。下级平台完成注册后，还需在平台侧配置资源共享。'
+        : '与“下级平台”共用同一份接入数据，在任一页新增、编辑或删除后均会同步；平台类记录会显示“下级平台”标志。'
     }
   },
   watch: {
@@ -329,8 +329,7 @@ export default {
         page: this.currentPage,
         count: this.count,
         query: this.searchStr,
-        status: this.online,
-        accessType: this.accessType
+        status: this.online
       }).then((data) => {
         this.total = data.total
         this.deviceList = data.list
@@ -347,7 +346,7 @@ export default {
     getRegisterAttempts: function() {
       return this.$store.dispatch('device/queryRegisterAttempts')
         .then((data) => {
-          this.registerAttempts = (data || []).filter(item => this.getAccessType(item.deviceId) === this.accessType)
+          this.registerAttempts = data || []
         })
         .catch(() => {
           this.registerAttempts = []
@@ -385,7 +384,7 @@ export default {
           } else {
             this.$refs.deviceEdit.openDialogForAdd({
               deviceId: row.deviceId,
-              name: `${this.isPlatformPage ? '待接入平台' : '待接入设备'} ${row.deviceId}`
+              name: `${this.getAccessType(row.deviceId) === 'PLATFORM' ? '待接入平台' : '待接入设备'} ${row.deviceId}`
             }, callback, hint)
           }
         })
@@ -428,7 +427,7 @@ export default {
       })
     },
     showChannelList: function(row) {
-      this.$emit('show-channel', row.deviceId)
+      this.$emit('show-channel', row.deviceId, row.accessType)
       // this.$router.push(`/device/?deviceId=${row.deviceId}`)
     },
     showDevicePosition: function(row) {

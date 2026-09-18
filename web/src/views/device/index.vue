@@ -8,7 +8,7 @@
     <channelList
       v-if="deviceId !== null"
       :device-id="deviceId"
-      :access-type="accessType"
+      :access-type="selectedAccessType"
       @show-device="showDevice"
     />
   </div>
@@ -26,7 +26,8 @@ export default {
   },
   data() {
     return {
-      deviceId: null
+      deviceId: null,
+      selectedAccessType: 'DEVICE'
     }
   },
   computed: {
@@ -37,11 +38,13 @@ export default {
   watch: {
     '$route.meta.accessType'() {
       this.deviceId = null
+      this.selectedAccessType = this.accessType
     }
   },
   methods: {
-    showChannelList: function(deviceId) {
+    showChannelList: function(deviceId, accessType) {
       this.deviceId = deviceId
+      this.selectedAccessType = accessType || this.accessType
     },
     showDevice: function() {
       this.deviceId = null

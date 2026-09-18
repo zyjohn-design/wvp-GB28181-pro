@@ -21,20 +21,20 @@
         />
         <el-form ref="form" :rules="rules" :model="form" label-width="100px">
           <el-alert
-            :title="accessType === 'PLATFORM' ? '下级平台配置说明' : '国标设备配置说明'"
+            :title="formAccessType === 'PLATFORM' ? '下级平台配置说明' : '国标设备配置说明'"
             :description="accessTypeDescription"
             type="info"
             :closable="false"
             show-icon
             style="margin-bottom: 18px;"
           />
-          <el-form-item :label="accessType === 'PLATFORM' ? '平台编号' : '设备编号'" prop="deviceId">
+          <el-form-item :label="formAccessType === 'PLATFORM' ? '平台编号' : '设备编号'" prop="deviceId">
             <el-input v-if="isEdit" v-model="form.deviceId" disabled />
             <el-input v-if="!isEdit" v-model="form.deviceId" :placeholder="deviceIdPlaceholder" clearable />
             <div v-if="form.deviceId" class="device-id-hint">{{ deviceIdHint }}</div>
           </el-form-item>
 
-          <el-form-item :label="accessType === 'PLATFORM' ? '平台名称' : '设备名称'" prop="name">
+          <el-form-item :label="formAccessType === 'PLATFORM' ? '平台名称' : '设备名称'" prop="name">
             <el-input v-model="form.name" clearable />
           </el-form-item>
           <el-form-item label="注册密码" prop="password">
@@ -112,15 +112,6 @@ export default {
         callback(new Error('请输入20位数字国标编号'))
         return
       }
-      const isPlatformId = Number(value.substring(10, 13)) >= 200
-      if (this.accessType === 'PLATFORM' && !isPlatformId) {
-        callback(new Error('该编号属于设备类型，请到“国标设备”中添加'))
-        return
-      }
-      if (this.accessType === 'DEVICE' && isPlatformId) {
-        callback(new Error('该编号属于平台类型，请到“下级平台”中添加'))
-        return
-      }
       callback()
     }
     const validateRegisterPassword = (rule, value, callback) => {
@@ -146,17 +137,23 @@ export default {
     }
   },
   computed: {
+    formAccessType() {
+      if (!/^\d{20}$/.test(this.form.deviceId || '')) {
+        return this.accessType
+      }
+      return Number(this.form.deviceId.substring(10, 13)) >= 200 ? 'PLATFORM' : 'DEVICE'
+    },
     dialogTitle() {
-      const target = this.accessType === 'PLATFORM' ? '下级平台' : '国标设备'
+      const target = this.formAccessType === 'PLATFORM' ? '下级平台' : '国标设备'
       return this.isEdit ? `编辑${target}` : `配置${target}接入`
     },
     accessTypeDescription() {
-      return this.accessType === 'PLATFORM'
-        ? '填写下级平台 REGISTER 使用的20位平台编号和密码。平台注册成功后，还需要在下级平台侧选择并共享摄像机资源。'
-        : '填写 IPC、NVR 等设备 REGISTER 使用的20位国标编号和密码；请勿在这里添加中心信令服务器或下级平台编号。'
+      return this.formAccessType === 'PLATFORM'
+        ? '填写下级平台 REGISTER 使用的20位平台编号和密码。保存后会同步显示在“国标设备”和“下级平台”两个页面。'
+        : '填写 IPC、NVR 等设备 REGISTER 使用的20位国标编号和密码。保存后会同步显示在“国标设备”和“下级平台”两个页面。'
     },
     deviceIdPlaceholder() {
-      return this.accessType === 'PLATFORM' ? '例如类型码为200的20位平台编号' : '请输入20位国标设备编号'
+      return this.accessType === 'PLATFORM' ? '请输入20位下级平台或国标设备编号' : '请输入20位国标设备或下级平台编号'
     },
     deviceIdHint() {
       if (!/^\d{20}$/.test(this.form.deviceId || '')) {
