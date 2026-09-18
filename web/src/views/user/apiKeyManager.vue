@@ -26,11 +26,23 @@
       >
         <el-table-column prop="user.username" label="用户名" min-width="120" />
         <el-table-column prop="app" label="应用名" min-width="160" />
-        <el-table-column label="ApiKey" :show-overflow-tooltip="true" min-width="300">
+        <el-table-column label="ApiKey" min-width="420">
           <template #default="scope">
-            <i v-clipboard="scope.row.apiKey" class="cpoy-btn el-icon-document-copy" title="点击拷贝" @success="$message({type:'success', message:'成功拷贝到粘贴板'})" />
-            <span>{{ scope.row.apiKey }}</span>
-
+            <div class="api-key-cell">
+              <el-tooltip :content="scope.row.apiKey" placement="top" :open-delay="500">
+                <span class="api-key-value">{{ scope.row.apiKey }}</span>
+              </el-tooltip>
+              <el-button
+                type="primary"
+                plain
+                size="mini"
+                icon="el-icon-document-copy"
+                :disabled="!scope.row.apiKey"
+                @click="copyApiKey(scope.row.apiKey)"
+              >
+                复制
+              </el-button>
+            </div>
           </template>
         </el-table-column>
         <el-table-column prop="enable" label="启用" width="120">
@@ -101,6 +113,29 @@
         @current-change="currentChange"
       />
     </el-dialog>
+    <el-dialog
+      title="ApiKey已重新生成"
+      width="60%"
+      top="8vh"
+      append-to-body
+      :close-on-click-modal="false"
+      :visible.sync="showNewApiKeyDialog"
+    >
+      <el-alert
+        title="旧ApiKey已失效，请立即复制并更新调用方配置。"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px;"
+      />
+      <el-input v-model="newApiKey" type="textarea" :rows="8" readonly />
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="showNewApiKeyDialog = false">关闭</el-button>
+        <el-button type="primary" icon="el-icon-document-copy" @click="copyApiKey(newApiKey)">
+          复制新ApiKey
+        </el-button>
+      </span>
+    </el-dialog>
     <addUserApiKey ref="addUserApiKey" />
     <remarkUserApiKey ref="remarkUserApiKey" />
   </div>
@@ -126,7 +161,9 @@ export default {
       count: 15,
       total: 0,
       getUserApiKeyListLoading: false,
-      showDialog: false
+      showDialog: false,
+      showNewApiKeyDialog: false,
+      newApiKey: ''
     }
   },
   mounted() {},
@@ -260,10 +297,13 @@ export default {
         type: 'warning'
       }).then(() => {
         this.$store.dispatch('userApiKeys/reset', row.id)
-          .then(() => {
+          .then((apiKey) => {
+            row.apiKey = apiKey
+            this.newApiKey = apiKey
+            this.showNewApiKeyDialog = true
             this.$message({
               showClose: true,
-              message: '重置成功',
+              message: '重置成功，请复制新的ApiKey',
               type: 'success'
             })
             this.getUserApiKeyList()
@@ -277,6 +317,25 @@ export default {
             console.error(error)
           })
       }).catch(() => {
+      })
+    },
+    copyApiKey(apiKey) {
+      if (!apiKey) {
+        this.$message.warning('ApiKey为空，无法复制')
+        return
+      }
+      this.$copyText(apiKey).then(() => {
+        this.$message({
+          showClose: true,
+          message: 'ApiKey已复制到剪贴板',
+          type: 'success'
+        })
+      }).catch(() => {
+        this.$message({
+          showClose: true,
+          message: '复制失败，请手动选择ApiKey复制',
+          type: 'error'
+        })
       })
     },
     deleteUserApiKey(row) {
@@ -320,6 +379,19 @@ export default {
   }
 }
 </script>
-<style>
+<style scoped>
+.api-key-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
+.api-key-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+}
 </style>
