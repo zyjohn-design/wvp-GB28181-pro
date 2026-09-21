@@ -1,0 +1,72 @@
+# WVP 完整前端更新包（含电子地图 HiMap）
+
+版本：`__RELEASE_ID__`　目标架构：Linux __TARGET_ARCH__
+
+本包是**整套前端静态资源**（全量替换，不是小补丁），升级时只重建 `polaris-wvp-web`
+一个容器，不会改动 WVP 后端、MySQL、Redis、ZLMediaKit、H5 适配器、录像和现场 `.env`。
+
+---
+
+## 一、需要你自己改的地方（就这一处）
+
+升级脚本跑完后，编辑服务器上的 **`<部署目录>/config/map/`** 目录，改完保存，
+**刷新浏览器页面即生效**，不需要重新打包、不需要重启容器：
+
+| 要改的文件 | 参数 | 必须改还是可选 | 说明 |
+|---|---|---|---|
+| `himap-config-light.js`、`himap-config-dark.js` | `HOSTNAME`、`gkmapHOSTNAME` | **必须** | HiMap 引擎服务地址，即 `himap.js`、`himap.css` 所在地址。默认指向 `http://219.147.31.25:30001/HiMap/`，现场不是这个地址就改成现场的 |
+| 同上 | `CENTERPOINT` | **必须** | 地图中心经纬度，例如武汉 `114.2667,30.5833` |
+| 同上 | `INITLEVEL` | 建议 | 打开地图时的初始级别（默认 `4`） |
+| 同上 | `solution` | 建议 | 底图样式 id：`11004` 淡雅白（浅色页）、`11003` 极夜蓝（深色页）。底图空白通常是这个 id 在该服务上不存在 |
+| 同上 | `MINEMAPURL`、`MINEMAPCSSURL`、`domainUrl`、`dataDomainUrl`、`spriteUrl` | 离线部署时**必须** | minemap 引擎与瓦片服务地址，默认指向公网 `minemap.minedata.cn`，内网/离线环境要改成内网服务 |
+| 同上 | `GEOSERVERURL` | 可选 | GeoServer 地址，不使用 WMS 服务可以不改 |
+
+> 两个文件（浅色、深色）都要改；改哪个文件只影响对应底图。
+
+除地图配置外，本包没有其他需要手工修改的内容。
+
+## 二、一键升级
+
+```sh
+tar -xzf __PACKAGE_NAME__.tar.gz
+cd __PACKAGE_NAME__
+chmod +x upgrade.sh rollback.sh verify.sh
+./verify.sh
+./upgrade.sh /opt/gb28181-h5
+```
+
+最后一个参数是现有 `deploy/traffic-command` 部署目录，其中必须有 `compose.yaml`、
+`compose.sh` 和现场真实的 `.env`。
+
+脚本执行顺序：
+
+1. 校验升级包完整性（SHA256）；
+2. 从现场 `compose.yaml` 读取实际使用的前端镜像名（不假设固定标签）；
+3. `config/map` 目录为空则用默认配置初始化，**已有配置一律保留不覆盖**；
+4. 若 `compose.yaml` 未挂载 `/opt/dist/map`，自动补上该挂载并备份原 `compose.yaml`；
+5. 备份现场前端镜像为 `pre-__RELEASE_ID__`，再全量替换静态资源构建新前端镜像；
+6. 只重建 `polaris-wvp-web`，并等待容器进入 running。
+
+构建使用现场已有的前端镜像作为基础（缺基线时回退到 `nginx:1.27-alpine`），
+**不访问远程镜像仓库**，适合离线环境。
+
+## 三、回滚
+
+```sh
+./rollback.sh /opt/gb28181-h5
+```
+
+回滚只恢复前端镜像，`config/map` 地图配置与现场数据不受影响。
+
+## 四、更新内容
+
+- 电子地图由 OpenLayers 迁移至 HiMap 引擎，`/map` 页面改用 HiMap（iframe 承载 `arcgis.html` /
+  `arcgis-dark.html`）。
+- 新增 `/map/himap-config-light.js`、`himap-config-dark.js` 底图配置，并改为挂载
+  `config/map` 目录，现场可随时修改。
+- 支持浅色/深色底图切换、定位全部通道；修复浅色底图样式 id 不存在导致底图空白的问题。
+
+## 五、注意
+
+- 升级需要现场有可用的 Docker 构建功能。
+- 浏览器若仍显示旧页面，请强制刷新或清理站点缓存。

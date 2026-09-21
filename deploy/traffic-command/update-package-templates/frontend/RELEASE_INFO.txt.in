@@ -1,0 +1,11 @@
+package=__PACKAGE_NAME__
+git_commit=__GIT_COMMIT__
+target_os=linux
+target_arch=__TARGET_ARCH__
+scope=frontend-full
+web_repo=__WEB_REPO__
+web_base_image=现场compose中的gb28181-wvp-web镜像（缺失时回退nginx:1.27-alpine）
+web_release_image=__WEB_REPO__:__RELEASE_ID__-__TARGET_ARCH__
+web_backup_image=__WEB_REPO__:pre-__RELEASE_ID__
+database_migration=none
+configuration_change=map-config-directory

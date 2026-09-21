@@ -83,7 +83,12 @@ media:
   id: polaris
   # [必须修改] ZLM 内网IP与端口
   ip: ${ZLM_HOST:127.0.0.1}
-  http-port: 80
+  # [必须修改] ZLM 的 HTTP 端口，同时用于两件事：
+  # 1. WVP 通过 http://${ZLM_HOST}:http-port/index/api 调用 ZLM 接口；
+  # 2. 生成 FMP4(live.mp4)/HLS/TS/WebRTC 的对外播放地址（不含 FLV，FLV 用下面的 flv-port）。
+  # 该值必须与 config/zlm/config.ini 中 [http] port 完全一致，且容器内该端口需要发布到宿主机，
+  # 否则外部访问 http://SERVER_IP:端口/rtp/xxx.live.mp4 会连不上。
+  http-port: ${ZLM_HTTP_PORT:80}
   # [可选] 返回流地址时的ip，置空使用 media.ip
   stream-ip: ${Stream_IP}
   # [可选] wvp在国标信令中使用的ip，此ip为摄像机可以访问到的ip， 置空使用 media.ip

@@ -1,1 +1,5 @@
 docker/volumes
+# 构建上下文排除本地产物：后端镜像内重新 mvn package，前端镜像内重新 npm install，
+# 带入宿主机的 node_modules/target 会拖慢构建，且宿主机原生二进制可能污染 Linux 构建。
+target
+web/node_modules

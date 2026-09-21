@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!-- <link rel="stylesheet" href="http://10.16.1.56:777/HiMap/himap.css" type="text/css"/> -->
+    <!-- <script src="http://10.16.1.56:777/HiMap/API/himapConfig.js"></script> -->
+    <!-- document.write("<script src='" + HOSTNAME + "assets/js/gkm/index/himap_gkpt.js'><\/script>");</script> -->
+    <!-- <script type="text/javascript" src="http://192.168.139.110:804/HiMap/CommonMapConfig.js"></script> -->
+    <script src="./himap-config-dark.js"></script>
+
+    <script>
+      document.write("<script src='" + HOSTNAME + "himap.js' maptype='minemap' onready = 'mapready' ><\/script>");
+      document.write("<link rel='stylesheet' href='" + HOSTNAME + "himap.css' type='text/css'\/>");
+      //管控扩展代码调用
+      // window.MAP_OBJ.queryByLine(coordinateStr, '13', ra, (cdata: any) => {
+      //     if (cdata?.rows !== null && cdata?.rows !== '') {
+      //       const cameraList = cdata.rows || [];
+      //       showVideoOnMap(cameraList);
+      //     }
+      //   });
+      document.write("<script src='" + gkmapHOSTNAME + "assets/js/gkm/index/himap_gkpt.js'><\/script>");
+    </script>
+    <!--  <script src="./himap_enhance_gjdt.js"></script>-->
+
+    <!--arcgis minemap mapabc supermap_leaflet-->
+    <title></title>
+    <style>
+      html,
+      body,
+      #map {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background-color: transparent;
+      }
+
+      #map {
+        position: relative;
+      }
+      .intsFlowInMap {
+        border: 1px solid #3fa9f5;
+        background: #111d3a;
+        font-size: 14px;
+        padding: 5px;
+      }
+      .intsFlowRow {
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow-x: hidden;
+        margin-bottom: 2px;
+      }
+      .green_ints_level_bg {
+        width: 22px;
+        height: 22px;
+        font-size: 16px;
+        background: url('../static/signalOpt/strategy_green_level_bg.png') no-repeat center 0;
+        background-size: 100%;
+        text-align: center;
+      }
+      .red_ints_level_bg {
+        width: 22px;
+        height: 22px;
+        font-size: 16px;
+        background: url('../static/signalOpt/strategy_red_level_bg.png') no-repeat center 0;
+        background-size: 100%;
+        text-align: center;
+      }
+      .yellow_ints_level_bg {
+        width: 22px;
+        height: 22px;
+        font-size: 16px;
+        background: url('../static/signalOpt/strategy_yellow_level_bg.png') no-repeat center 0;
+        background-size: 100%;
+        text-align: center;
+      }
+      .bottle_ints_level_bg {
+        width: 70px;
+        height: 70px;
+        line-height: 70px;
+        font-size: 16px;
+        background: url('../static/signalOpt/strategy_bottleInts_bg.png') no-repeat center 0;
+        background-size: 100%;
+        text-align: center;
+      }
+      .bottle_ints_title1,
+      .bottle_ints_title2 {
+        height: 35px;
+        font-size: 12px;
+      }
+      .bottle_ints_title1 {
+        line-height: 50px;
+      }
+      .bottle_ints_title2 {
+        line-height: 20px;
+      }
+      .esriPopup .contentPane {
+        background: #04182c;
+        color: #fff;
+      }
+
+      .minemap-popup-content {
+        color: #071733;
+        opacity: 0.8;
+      }
+      .minemap-popup {
+        max-width: none !important;
+      }
+      .echartMap {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+
+      .circle1,
+      .circle2,
+      .circle3 {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        margin: -15px 0 0 -15px;
+        width: 30px;
+        height: 30px;
+        border-radius: 30px;
+      }
+      .circle1 {
+        -webkit-animation: circle 3s linear infinite;
+        animation: circle 3s linear infinite;
+      }
+      .circle2 {
+        -webkit-animation: circle 3s linear 0.8s infinite;
+        animation: circle 3s linear 0.8s infinite;
+      }
+      .circle3 {
+        -webkit-animation: circle 3s linear 1.6s infinite;
+        animation: circle 3s linear 1.6s infinite;
+      }
+      @-webkit-keyframes circle {
+        /* Safari and Chrome */
+        from {
+          opacity: 1;
+          -webkit-transform: scale(0);
+        }
+        to {
+          opacity: 0;
+          -webkit-transform: scale(3);
+        }
+      }
+      @keyframes circle {
+        from {
+          opacity: 1;
+          transform: scale(0);
+        }
+        to {
+          opacity: 0;
+          transform: scale(3);
+        }
+      }
+      .level1 {
+        background-color: #ed173a;
+      }
+    </style>
+    <script>
+      // Himap 引擎加载完成后由 himap.js 回调此函数，实例挂到 window._MapApp 供父页面轮询获取
+      var _MapApp;
+      function mapready() {
+        _MapApp = new HiMap(document.getElementById('map'), {
+          whoUse: 'react', // 沿用 HiMap 交付包的既定取值，勿随意修改
+          // pitch: 45,
+          subSystem: 'face',
+          centerPoint: CENTERPOINT,
+          initLevel: INITLEVEL
+        });
+        HiMapConfig.whoUse = 'react';
+        _MapApp.TrackPlay = TrackPlay;
+        extendHiMap();
+      }
+    </script>
+  </head>
+  <body>
+    <div id="map"></div>
+  </body>
+</html>
