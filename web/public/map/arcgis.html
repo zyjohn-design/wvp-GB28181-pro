@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <!-- 浅色底图配置：HOSTNAME、CENTERPOINT、INITLEVEL、GETTILEURL 等 -->
+  <script src="./himap-config-light.js"></script>
+  <script>
+    // 加载 HiMap 引擎（himap.js 通过 maptype 决定底层引擎）、样式与管控扩展
+    document.write("<script src='" + HOSTNAME + "himap.js' maptype='minemap' onready = 'mapready' ><\/script>");
+    document.write("<link rel='stylesheet' href='" + HOSTNAME + "himap.css' type='text/css'\/>");
+    document.write("<script src='" + gkmapHOSTNAME + "assets/js/gkm/index/himap_gkpt.js'><\/script>");
+  </script>
+  <!-- 底层引擎可选 arcgis / minemap / mapabc / supermap_leaflet -->
+  <title>地图</title>
+  <style>
+  html, body, #map {
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #map {
+    position: relative;
+  }
+
+  </style>
+  <script>
+  // Himap 引擎加载完成后由 himap.js 回调此函数，实例挂到 window._MapApp 供父页面轮询获取
+  var _MapApp;
+  function mapready() {
+    _MapApp = new HiMap(document.getElementById("map"), {
+      whoUse: 'react', // 沿用 HiMap 交付包的既定取值，勿随意修改
+      pitch: 45,
+      subSystem: 'face',
+      centerPoint: CENTERPOINT,
+      initLevel: INITLEVEL
+    });
+    HiMapConfig.whoUse = 'react';
+    extendHiMap();
+    _MapApp.TrackPlay = TrackPlay;
+  }
+  </script>
+</head>
+<body>
+<div id="map"></div>
+</body>
+</html>
