@@ -281,6 +281,45 @@ ssh -L 18080:127.0.0.1:18080 用户名@服务器IP
 更新前建议复制一份当前目录并备份 `data/mysql`。不要在运行时修改 WVP 镜像内的文件；
 WVP 配置位于宿主机 `config/wvp/`，修改后重启 `polaris-wvp` 即可。
 
+### 8.1 电子地图配置（`config/map`，改完刷新即生效）
+
+`/map` 页面由 HiMap（iframe 承载 `public/map/arcgis.html`、`arcgis-dark.html`）渲染，
+底图参数放在 `config/map/himap-config-light.js`、`himap-config-dark.js`。该目录已挂载到前端容器
+的 `/opt/dist/map`（只读），因此**更新前端镜像不会覆盖现场地图配置**。
+
+| 参数 | 说明 | 参考值 |
+|---|---|---|
+| `HOSTNAME`、`gkmapHOSTNAME` | HiMap 引擎服务地址（`himap.js`、`himap.css` 所在位置） | 现场 HiMap 服务地址 |
+| `CENTERPOINT` | 地图中心经纬度 | 武汉 `114.2667,30.5833` |
+| `INITLEVEL` | 初始缩放级别 | `4` |
+| `solution` | 底图样式 id | `11004` 淡雅白（浅色）、`11003` 极夜蓝（深色） |
+| `MINEMAPURL`、`domainUrl`、`spriteUrl` 等 | minemap 引擎与瓦片服务地址 | 离线部署时指向内网服务 |
+| `GEOSERVERURL` | GeoServer 地址（WMS 服务） | 按现场填写 |
+
+改完保存后**刷新浏览器页面即生效**，不需要重新打包或重启容器。若 `config/map` 为空，
+地图页会 404，可从 `web/public/map/` 复制默认配置补齐。
+
+### 8.2 一键更新前端（含电子地图）
+
+```bash
+cd deploy/traffic-command
+./build-frontend-update.sh amd64        # 生成 releases/wvp-frontend-<日期>-<提交>-amd64.tar.gz
+```
+
+把压缩包和 `.sha256` 上传到服务器后：
+
+```bash
+tar -xzf wvp-frontend-<版本>-amd64.tar.gz
+cd wvp-frontend-<版本>-amd64
+chmod +x upgrade.sh rollback.sh verify.sh
+./verify.sh
+./upgrade.sh /opt/gb28181-h5
+```
+
+该脚本只重建 `polaris-wvp-web`：校验包完整性 → 初始化（或保留）`config/map` → 确认
+`compose.yaml` 已挂载 `/opt/dist/map`（缺失时自动补上并备份原文件）→ 用现场基线镜像离线构建
+前端增量镜像 → 重建前端容器。失败可用 `./rollback.sh /opt/gb28181-h5` 回滚。
+
 ## 9. 验收顺序
 
 1. `./status.sh` 中所有核心容器处于 `Up`/`healthy`。

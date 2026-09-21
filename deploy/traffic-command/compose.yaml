@@ -131,6 +131,9 @@ services:
       - "${WVP_BIND_IP}:${WVP_WEB_PORT}:8080"
     volumes:
       - ./config/nginx/wvp-web.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # 地图配置目录：himap-config-light.js / himap-config-dark.js 由现场维护，
+      # 覆盖镜像内的 /opt/dist/map，更新前端镜像不会影响此目录。
+      - ./config/map:/opt/dist/map:ro
     depends_on: [polaris-wvp]
     networks: [media-net]
 

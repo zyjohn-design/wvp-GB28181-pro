@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+set -eu
+
+DEPLOY_DIR=${1:-/opt/gb28181-h5}
+WEB_CURRENT='__WEB_CURRENT__'
+WEB_BACKUP='__WEB_BACKUP__'
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "错误：未找到 docker。" >&2
+    exit 1
+fi
+if [ ! -f "$DEPLOY_DIR/compose.yaml" ] || [ ! -x "$DEPLOY_DIR/compose.sh" ]; then
+    echo "错误：$DEPLOY_DIR 不是有效的 traffic-command 部署目录。" >&2
+    exit 1
+fi
+if ! docker image inspect "$WEB_BACKUP" >/dev/null 2>&1; then
+    echo "错误：未找到本升级包生成的回滚镜像 $WEB_BACKUP。" >&2
+    exit 1
+fi
+
+docker tag "$WEB_BACKUP" "$WEB_CURRENT"
+
+cd "$DEPLOY_DIR"
+./compose.sh up -d --force-recreate polaris-wvp-web
+./compose.sh ps polaris-wvp-web
+echo "已恢复升级前的WVP前端镜像；地图配置目录 config/map 与现场数据均未修改。"

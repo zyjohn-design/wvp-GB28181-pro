@@ -1,0 +1,62 @@
+# WVP 前端增量更新包（含电子地图 HiMap）
+
+版本：`__RELEASE_ID__`  
+目标架构：Linux __TARGET_ARCH__  
+基线镜像：`__WEB_CURRENT__`
+
+本包只替换 WVP **前端静态资源**，只重建 `polaris-wvp-web` 一个容器。不会覆盖现场
+`.env`、`config/map` 地图配置，也不会改动 WVP 后端、MySQL、Redis、ZLMediaKit、
+H5 适配器、录像等任何数据。
+
+## 更新内容
+
+- 电子地图由 OpenLayers 迁移至 HiMap 引擎，`/map` 页面改用 HiMap（iframe 承载）。
+- 新增 `public/map/` 静态资源：`arcgis.html`（浅色）、`arcgis-dark.html`（深色）及
+  `himap-config-light.js`、`himap-config-dark.js` 两份底图配置。
+- 支持浅色/深色底图切换、定位全部通道；修正浅色底图样式 id 不存在导致底图空白的问题。
+- 地图配置改为挂载 `config/map` 目录，可在服务器上直接修改，更新前端包不会覆盖。
+
+## 升级
+
+```sh
+tar -xzf __PACKAGE_NAME__.tar.gz
+cd __PACKAGE_NAME__
+chmod +x upgrade.sh rollback.sh verify.sh
+./verify.sh
+./upgrade.sh /opt/gb28181-h5
+```
+
+最后一个参数是现有 `deploy/traffic-command` 部署目录，其中必须已有 `compose.yaml`、
+`compose.sh` 和现场真实的 `.env`。
+
+升级脚本会：校验包完整性 → 初始化（或保留）`config/map` → 确认 `compose.yaml` 已挂载
+`/opt/dist/map`（缺失时自动补上并备份原文件）→ 基于现场镜像离线构建前端增量镜像 →
+只重建前端容器。构建过程不访问远程镜像仓库。
+
+## 地图配置（升级后按现场修改）
+
+配置目录：`<部署目录>/config/map/`，主要参数在 `himap-config-light.js` /
+`himap-config-dark.js`：
+
+| 参数 | 说明 |
+|---|---|
+| `HOSTNAME`、`gkmapHOSTNAME` | HiMap 引擎服务地址（`himap.js`/`himap.css` 所在位置） |
+| `CENTERPOINT` | 地图中心经纬度，武汉为 `114.2667,30.5833` |
+| `INITLEVEL` | 初始缩放级别 |
+| `solution` | 底图样式 id：`11004` 淡雅白（浅色）、`11003` 极夜蓝（深色） |
+| `MINEMAPURL` 等 | minemap 引擎与瓦片服务地址（离线部署时指向内网服务） |
+| `GEOSERVERURL` | GeoServer 地址（提供 WMS 服务时使用） |
+
+改完保存即可，**刷新浏览器页面就生效**，不需要重新打包或重启容器。
+
+## 回滚
+
+```sh
+./rollback.sh /opt/gb28181-h5
+```
+
+## 注意
+
+- 本包要求现场已有基线镜像 `__WEB_CURRENT__` 和可用的 Docker 构建功能。
+- 前端静态资源全部在镜像内，地图配置通过挂载覆盖，因此更新前后 `config/map` 始终由现场掌握。
+- 浏览器若仍显示旧页面，请强制刷新或清理站点缓存。

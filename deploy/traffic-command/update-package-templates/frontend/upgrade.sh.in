@@ -1,0 +1,114 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+DEPLOY_DIR=${1:-/opt/gb28181-h5}
+TARGET_ARCH='__TARGET_ARCH__'
+
+WEB_RELEASE='__WEB_RELEASE__'
+WEB_CURRENT='__WEB_CURRENT__'
+WEB_BACKUP='__WEB_BACKUP__'
+
+MAP_DIR="$DEPLOY_DIR/config/map"
+MAP_MOUNT_LINE='      - ./config/map:/opt/dist/map:ro'
+NGINX_ANCHOR='      - ./config/nginx/wvp-web.conf.template:/etc/nginx/templates/default.conf.template:ro'
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "错误：未找到 docker。" >&2
+    exit 1
+fi
+if [ ! -f "$DEPLOY_DIR/compose.yaml" ] || [ ! -x "$DEPLOY_DIR/compose.sh" ]; then
+    echo "错误：$DEPLOY_DIR 不是有效的 traffic-command 部署目录。" >&2
+    exit 1
+fi
+if [ ! -f "$DEPLOY_DIR/.env" ]; then
+    echo "错误：$DEPLOY_DIR/.env 不存在；不会使用 .env.example 代替现场配置。" >&2
+    exit 1
+fi
+
+machine_arch=$(uname -m)
+case "$TARGET_ARCH:$machine_arch" in
+    amd64:x86_64|amd64:amd64|arm64:aarch64|arm64:arm64) ;;
+    *)
+        echo "错误：当前服务器架构为 $machine_arch，本包目标架构为 $TARGET_ARCH。" >&2
+        exit 1
+        ;;
+esac
+
+cd "$DEPLOY_DIR"
+compose_images=$(./compose.sh config --images)
+if ! printf '%s\n' "$compose_images" | grep -Fqx "$WEB_CURRENT"; then
+    echo "错误：现场Compose未使用预期的前端镜像 $WEB_CURRENT。" >&2
+    echo "预期：$WEB_CURRENT" >&2
+    exit 1
+fi
+
+"$SCRIPT_DIR/verify.sh"
+
+echo "[1/4] 准备地图配置目录（只创建、不覆盖）..."
+mkdir -p "$MAP_DIR"
+if [ -z "$(ls -A "$MAP_DIR" 2>/dev/null || true)" ]; then
+    cp -R "$SCRIPT_DIR/map/." "$MAP_DIR/"
+    echo "  已用默认配置初始化 $MAP_DIR"
+    echo "  请按现场情况修改 himap-config-light.js / himap-config-dark.js 中的"
+    echo "  HOSTNAME（HiMap服务地址）、CENTERPOINT（地图中心）、INITLEVEL（初始级别）、"
+    echo "  solution（底图样式id）等参数。"
+else
+    echo "  $MAP_DIR 已有配置，保持现场配置不做覆盖。"
+fi
+
+echo "[2/4] 确认前端容器已挂载地图配置目录..."
+if grep -Fq "/opt/dist/map" "$DEPLOY_DIR/compose.yaml"; then
+    echo "  compose.yaml 已挂载 /opt/dist/map。"
+else
+    backup="$DEPLOY_DIR/compose.yaml.bak-$(date +%Y%m%d%H%M%S)"
+    cp "$DEPLOY_DIR/compose.yaml" "$backup"
+    if grep -Fq "$NGINX_ANCHOR" "$DEPLOY_DIR/compose.yaml"; then
+        sed -i "s|$NGINX_ANCHOR|$NGINX_ANCHOR\n$MAP_MOUNT_LINE|" "$DEPLOY_DIR/compose.yaml"
+        echo "  已在 polaris-wvp-web 增加 $MAP_MOUNT_LINE"
+        echo "  原文件已备份：$(basename "$backup")"
+    else
+        echo "错误：compose.yaml 中未找到预期的 Nginx 模板挂载行，请手工在 polaris-wvp-web 的" >&2
+        echo "volumes 下添加：$MAP_MOUNT_LINE" >&2
+        exit 1
+    fi
+fi
+
+if ! docker image inspect "$WEB_CURRENT" >/dev/null 2>&1; then
+    echo "错误：未找到当前前端基础镜像 $WEB_CURRENT。" >&2
+    exit 1
+fi
+if ! docker image inspect "$WEB_BACKUP" >/dev/null 2>&1; then
+    docker tag "$WEB_CURRENT" "$WEB_BACKUP"
+fi
+
+echo "[3/4] 构建前端增量镜像（仅替换静态资源）..."
+docker build --pull=false \
+    --build-arg "BASE_IMAGE=$WEB_CURRENT" \
+    -f "$SCRIPT_DIR/docker/web.Dockerfile" \
+    -t "$WEB_RELEASE" \
+    "$SCRIPT_DIR"
+
+docker tag "$WEB_RELEASE" "$WEB_CURRENT"
+
+echo "[4/4] 重建前端容器..."
+cd "$DEPLOY_DIR"
+./compose.sh up -d --force-recreate polaris-wvp-web
+
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+    web_id=$(./compose.sh ps -q polaris-wvp-web)
+    if [ -n "$web_id" ] && [ "$(docker inspect -f '{{.State.Running}}' "$web_id")" = "true" ]; then
+        ./compose.sh ps polaris-wvp-web
+        echo "前端增量升级完成。"
+        echo "地图配置：$MAP_DIR（本次未覆盖，后续改完配置刷新页面即可生效，无需重新打包）"
+        echo "回滚命令：./rollback.sh $DEPLOY_DIR"
+        exit 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 2
+done
+
+./compose.sh ps polaris-wvp-web
+echo "错误：容器未在60秒内进入 running；请检查日志或执行 rollback.sh。" >&2
+exit 1
