@@ -1,0 +1,153 @@
+# WVP 指挥调度视频平台 离线部署包（__TARGET_ARCH__）
+
+版本：`__VERSION__`　目标架构：Linux __TARGET_ARCH__　打包提交：`__GIT_COMMIT__`
+
+本包是**完整离线部署包**：包含全部业务镜像、部署编排、配置模板和数据库初始化脚本，
+目标服务器**无需联网、无需构建**即可部署。
+
+## 一、服务器要求
+
+| 项 | 要求 |
+|---|---|
+| 架构 | Linux __TARGET_ARCH__（执行 `uname -m` 确认，部署脚本会校验） |
+| CPU / 内存 | 最低 4 核 / 8 GB；推荐 8 核 / 16 GB |
+| 磁盘 | 系统盘 100 GB 起；需要录像时另备录像盘 |
+| 系统 | Ubuntu 22.04/24.04 LTS 或 Rocky Linux 9，内核 5.10+ |
+| Docker | Docker Engine 24+，支持 `docker compose` v2 或 `docker-compose` 1.29.2 |
+| 时间 | 开启 NTP，与宇视设备/NVR 时间一致 |
+
+## 二、一键部署
+
+```bash
+tar -xzf __PACKAGE_NAME__.tar.gz
+cd __PACKAGE_NAME__
+chmod +x *.sh
+
+./verify.sh                # ① 校验包完整性（SHA256）
+vi .env                    # ② 核对服务器IP、SIP编号、数据库密码
+./load-images.sh           # ③ 导入离线镜像（约 3~8 分钟）
+./verify-images.sh         # ④ 校验镜像完整性
+./start.sh                 # ⑤ 启动
+./status.sh                # ⑥ 查看容器状态
+curl http://127.0.0.1:17860/health
+```
+
+首次启动 MySQL 需要初始化，通常等待 1~3 分钟。
+管理后台：`http://<服务器IP>:18080/`，初始账号 `admin/admin`，首次登录必须改强密码。
+
+## 三、必须放行的端口
+
+| 端口 | 协议 | 用途 | 来源 |
+|---|---|---|---|
+| `8116` | TCP + UDP | GB28181 SIP 注册/心跳/信令 | 宇视设备/NVR |
+| `10000` | TCP + UDP | GB28181 RTP/PS 媒体 | 宇视设备/NVR |
+| `17860` | TCP | H5 播放入口（兼容 index2.html） | 业务客户端 |
+| `18080` | TCP | WVP 管理后台 + `/api/` + `/rtp/` 媒体代理 | **仅可信管理网** |
+| `18082` | TCP | ZLM HTTP 媒体：MP4(FMP4)/HLS/TS/WebRTC | 播放客户端、对接方 |
+| `5540` | TCP + UDP | RTSP（按需） | 对接方 |
+| `10935` | TCP + UDP | RTMP（按需） | 对接方 |
+| `8000`、`3478` | TCP + UDP | WebRTC（按需） | 播放客户端 |
+
+`18978`、`18081`、`3306`、`6379` 只允许本机访问，禁止对公网放行。
+
+## 四、电子地图（HiMap）配置说明【部署后按现场修改】
+
+`/map` 页面由 HiMap 渲染，底图参数放在 **`<部署目录>/config/map/`**。该目录已挂载到前端容器
+的 `/opt/dist/map`（只读），因此**改完保存、刷新浏览器页面即生效**，不需要重新打包、不需要
+重启容器；后续升级前端也不会覆盖现场配置。
+
+### 4.1 需要修改的文件
+
+```
+config/map/
+├── arcgis.html               # 浅色底图入口页（一般不用改）
+├── arcgis-dark.html          # 深色底图入口页（一般不用改）
+├── himap-config-light.js     # 浅色底图配置  ← 需要改
+└── himap-config-dark.js      # 深色底图配置  ← 需要改（与浅色保持一致）
+```
+
+### 4.2 参数清单
+
+| 参数（两个文件都要改） | 本包预置值 | 说明 |
+|---|---|---|
+| `HOSTNAME`、`gkmapHOSTNAME` | `http://27.10.171.2:8090/HiMap/` | HiMap 引擎地址，`himap.js`/`himap.css` 所在位置，**必须与现场部署一致** |
+| `CENTERPOINT` | `114.2667,30.5833` | 地图中心经纬度，换城市必须改 |
+| `INITLEVEL` | `4` | 打开地图时的初始缩放级别 |
+| `solution` | `11004`（浅色）/ `11003`（深色） | 底图样式 id；底图空白通常是该 id 在当前服务上不存在 |
+| `MINEMAPURL`、`MINEMAPCSSURL`、`domainUrl`、`dataDomainUrl`、`spriteUrl` | `https://minemap.minedata.cn/...` | minemap 引擎与瓦片服务地址，内网/离线环境必须改成内网服务 |
+| `GEOSERVERURL` | `http://27.10.171.3:8080/geoserver` | GeoServer 地址，不使用 WMS 服务可忽略 |
+| 超图瓦片 `TILESSERVER`（`getTiledFile`） | `http://27.10.171.2:8090/HiMap/getTiledFile?...` | 离线瓦片服务地址 |
+| 矢量底图目录 | 浅色 `vectors/white/`、深色 `vectors/dark/` | 跟随 `HOSTNAME` 的服务地址 |
+
+### 4.3 修改示例
+
+```bash
+cd <部署目录>/config/map
+vi himap-config-light.js     # 改 HOSTNAME / CENTERPOINT / MINEMAPURL / GEOSERVERURL 等
+vi himap-config-dark.js      # 与浅色保持同样的地址（矢量目录仍用 vectors/dark/）
+# 保存后直接刷新浏览器（Ctrl+F5）即可，无需重启容器
+```
+
+> 注意：`/* */` 注释块里的历史地址不需要改；只改被真正引用的变量。
+> 两个文件（浅色、深色）要一起改，避免切换底图后地址不一致。
+
+### 4.4 常见现象
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| 地图区域空白 | `HOSTNAME` 指向的服务不可达，或 `solution` 样式 id 无效 | 浏览器 F12 看 `himap.js` 是否 404；核对 `HOSTNAME` 与 `solution` |
+| 有底图但没有业务点位 | 通道没有国标编号经纬度 | 在 WVP 后台给通道补经纬度 |
+| 深色底图异常、浅色正常 | 只改了浅色文件 | 同步修改 `himap-config-dark.js` |
+| 改了没生效 | 浏览器缓存 | Ctrl+F5 强刷，或清理站点缓存 |
+
+## 五、目录结构
+
+```
+__PACKAGE_NAME__/
+├── .env                     # 现场参数（已按武汉预置，需核对）
+├── .env.example             # 参数模板
+├── compose.yaml             # 服务编排（__TARGET_ARCH__）
+├── compose.sh / start.sh / stop.sh / status.sh / preflight.sh
+├── load-images.sh / verify-images.sh
+├── images/                  # 离线镜像（7 个组件）
+├── config/
+│   ├── map/                 # 电子地图配置（见第四章）
+│   ├── wvp/                 # WVP 应用配置
+│   ├── zlm/                 # ZLMediaKit 配置
+│   ├── nginx/               # 网关配置
+│   ├── redis/
+│   └── device-map.json
+├── adapter/                 # H5 适配层代码（兼容 index2.html）
+├── database/init.sql        # 数据库初始化
+└── README.md / RELEASE_INFO.txt / SHA256SUMS
+```
+
+## 六、运维
+
+```bash
+./status.sh                       # 容器状态
+./stop.sh                         # 停止（不删数据）
+./start.sh                        # 启动
+./compose.sh logs -f polaris-wvp  # 查看日志
+./export-video-channels.sh        # 导出视频通道清单
+```
+
+不要执行 `./compose.sh down -v`，也不要删除 `data/` 目录。
+
+## 七、宇视对接参数（给宇视侧配置）
+
+| 参数 | 本包预置值 |
+|---|---|
+| 上级平台 IP | `.env` 中的 `SERVER_IP` |
+| SIP 端口 | `8116`（UDP/TCP） |
+| 上级平台域 | `4201000000` |
+| 上级平台编号 | `42010000002002609171` |
+| 注册密码 | `.env` 中的 `SIP_PASSWORD`（当前为空＝不启用 Digest 认证） |
+| 媒体接收端口 | `10000`（UDP/TCP，单端口） |
+
+## 八、安全提示
+
+1. 本包 `.env` 预置了数据库口令，交付后请按现场要求更换并妥善保管。
+2. `18080` 必须限制到可信管理网；WVP 的 `/api/device/query/devices**`、`/api/play/start|stop/**`、
+   `/api/front-end/ptz/**` 在本包中为免鉴权放行，仅适合受限网络环境。
+3. 文档与对接方共享 API Key 时，建议按对接方单独创建 Key，便于随时停用。

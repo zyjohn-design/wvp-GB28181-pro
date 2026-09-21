@@ -1,0 +1,16 @@
+package=__PACKAGE_NAME__
+version=__VERSION__
+git_commit=__GIT_COMMIT__
+target_os=linux
+target_arch=__TARGET_ARCH__
+scope=offline-full
+images=
+  mysql:8.4
+  redis:7.4-alpine
+  zlmediakit/zlmediakit:master
+  nginx:1.27-alpine
+  __WVP_IMAGE__
+  __WEB_IMAGE__
+  __ADAPTER_IMAGE__
+database_migration=init.sql-only
+configuration_change=map-config-directory
