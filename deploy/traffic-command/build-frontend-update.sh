@@ -44,7 +44,7 @@ RELEASE_ID=${RELEASE_ID:-"${RELEASE_DATE}-${GIT_SHORT}"}
 
 WEB_RELEASE="local/gb28181-wvp-web:${RELEASE_ID}-${TARGET_ARCH}"
 WEB_BACKUP="local/gb28181-wvp-web:pre-${RELEASE_ID}-${TARGET_ARCH}"
-PACKAGE_NAME="wvp-frontend-${RELEASE_ID}-${TARGET_ARCH}"
+PACKAGE_NAME="wvp-frontend-full-${RELEASE_ID}-${TARGET_ARCH}"
 PACKAGE_DIR="$RELEASES_DIR/$PACKAGE_NAME"
 ARCHIVE_PATH="$RELEASES_DIR/$PACKAGE_NAME.tar.gz"
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/wvp-frontend.XXXXXX")
@@ -95,6 +95,7 @@ render_template() {
         -e "s|__TARGET_ARCH__|$TARGET_ARCH|g" \
         -e "s|__GIT_COMMIT__|$GIT_COMMIT|g" \
         -e "s|__WEB_CURRENT__|$WEB_CURRENT|g" \
+        -e "s|__WEB_REPO__|${WEB_CURRENT%:*}|g" \
         -e "s|__WEB_RELEASE__|$WEB_RELEASE|g" \
         -e "s|__WEB_BACKUP__|$WEB_BACKUP|g" \
         "$input" > "$output"
@@ -130,7 +131,7 @@ mv "$WORK_DIR/$PACKAGE_NAME" "$PACKAGE_DIR"
 tar -C "$RELEASES_DIR" -czf "$ARCHIVE_PATH" "$PACKAGE_NAME"
 printf '%s  %s\n' "$(hash_file "$ARCHIVE_PATH")" "$(basename "$ARCHIVE_PATH")" > "$ARCHIVE_PATH.sha256"
 
-echo "前端增量更新包生成完成："
+echo "完整前端更新包生成完成："
 echo "  $ARCHIVE_PATH"
 echo "  $ARCHIVE_PATH.sha256"
 echo "包内地图默认配置：$(ls "$MAP_SOURCE_DIR" | tr '\n' ' ')"

@@ -1,4 +1,4 @@
-ARG BASE_IMAGE
+ARG BASE_IMAGE=nginx:1.27-alpine
 FROM ${BASE_IMAGE}
 
 RUN rm -rf /opt/dist/*
