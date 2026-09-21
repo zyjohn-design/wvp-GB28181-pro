@@ -1,6 +1,6 @@
 //HiMap 部署地址
-var HOSTNAME = "http://219.147.31.25:30001/HiMap/"; // 公共地图
-var gkmapHOSTNAME = "http://219.147.31.25:30001/HiMap/"; // 管控扩展地图
+var HOSTNAME = "http://27.10.171.2:8090/HiMap/"; // 公共地图
+var gkmapHOSTNAME = "http://27.10.171.2:8090/HiMap/"; // 管控扩展地图
 
 // 最初基于那种地图开发就配成哪种地图; 切换其它地图时,不需要再改此参数,只需要配置对应的级别
 var BASICTYPE = "arcgis"; // arcgis  minemap  mapabc supermap_leaflet
@@ -21,7 +21,7 @@ if (window.location.href) {
 }
 
 // geoServer 地址 (提供 WMS等服务)
-var GEOSERVERURL = "http://10.18.221.134:8088/geoserver";
+var GEOSERVERURL = "http://27.10.171.3:8080/geoserver";
 
 // 地图类型切换时 对应的级别
 var zoomExtentA = [0, 9]; // arcgis   地图级别范围
@@ -115,7 +115,7 @@ var GETTILEURL = function (level, row, col) {
   var fourthPath = col16.substring(0, 4) + "-" + row16.substring(0, 4);
   var fifthPath = col16.substring(0, 5) + "-" + row16.substring(0, 5);
   return (
-    "http://219.147.31.25:30001/HiMap/vectors/dark/" +
+    "http://27.10.171.2:8090/HiMap/vectors/dark/" +
     level +
     "/" +
     firstPath +
@@ -222,7 +222,7 @@ var FILEEXTENSION = "png";
 
 //******************** 超图cesium地图配置项  ********************
 var TILESSERVER =
-  "http://10.16.1.56:9499/HiMap/getTiledFile?Service=getImage&Type=RGB&Col={TileCol}&Row={TileRow}&Zoom={TileMatrix}&V=1.0&FILEPATH=TILEDFILEPATH"; //地图服务
+  "http://27.10.171.2:8090/HiMap/getTiledFile?Service=getImage&Type=RGB&Col={TileCol}&Row={TileRow}&Zoom={TileMatrix}&V=1.0&FILEPATH=TILEDFILEPATH"; //地图服务
 //var TILESSERVER ="http://10.16.3.45:8060/manager/mapfile/title?col={TileCol}&row={TileRow}&level={TileMatrix}";
 var VIEWHEIGHT = [
   { level: 0, scale: 384000 },
