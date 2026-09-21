@@ -60,7 +60,11 @@ services:
       - "8000:8000/udp"
       - "3478:3478/tcp"
       - "3478:3478/udp"
-      - "127.0.0.1:${ZLM_DEBUG_PORT}:80"
+      # ZLM HTTP 端口：MP4(FMP4)/HLS/TS/WebRTC 与 ZLM 接口共用。
+      # 必须与 config/zlm/config.ini 的 [http] port 保持一致，并对外放行后，
+      # 播放地址才会是 http://SERVER_IP:${ZLM_HTTP_PORT}/rtp/xxx.live.mp4
+      - "${ZLM_HTTP_PORT:-18082}:${ZLM_HTTP_PORT:-18082}/tcp"
+      - "127.0.0.1:${ZLM_DEBUG_PORT}:${ZLM_HTTP_PORT:-18082}"
     volumes:
       - ./config/zlm/config.ini:/conf/config.ini
       - ./data/record:/opt/media/bin/www/record
@@ -83,6 +87,8 @@ services:
       SIP_Password: ${SIP_PASSWORD}
       ZLM_HOOK_HOST: polaris-wvp
       ZLM_HOST: polaris-media
+      # ZLM HTTP 端口，与 http-port 配置项、config.ini [http] port 三处保持一致
+      ZLM_HTTP_PORT: ${ZLM_HTTP_PORT:-18082}
       ZLM_SERCERT: su6TiedN2rVAmBbIDX0aa0QTiBJLBdcf
       # WVP页面返回的媒体地址经WVP Web同源代理，浏览器不需要访问ZLM调试端口。
       MediaHttp: ${WVP_WEB_PORT}
@@ -139,7 +145,7 @@ services:
       WVP_BASE_URL: http://polaris-wvp:18978
       WVP_API_KEY: ""
       WVP_AUTH_HEADER: api-key
-      ZLM_BASE_URL: http://polaris-media:80
+      ZLM_BASE_URL: http://polaris-media:${ZLM_HTTP_PORT:-18082}
       DEFAULT_GB_DEVICE_ID: ${DEFAULT_GB_DEVICE_ID}
       DEVICE_MAP_FILE: /runtime-config/device-map.json
       PROXY_MEDIA: "true"
