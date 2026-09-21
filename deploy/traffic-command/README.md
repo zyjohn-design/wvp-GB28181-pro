@@ -62,11 +62,42 @@ H.264 子码流。若必须把 H.265 实时转成 H.264，则属于转码场景�
 | `10000` | TCP + UDP | GB28181 RTP/PS 单端口媒体 | 宇视设备/NVR |
 | `7860` | TCP | 现有 index2.html 的 H5 iframe 接口 | 业务客户端 |
 | `18080` | TCP | WVP 管理页面 | 默认仅服务器本机 |
+| `18082` | TCP | ZLM HTTP 媒体：MP4(FMP4)/HLS/TS/WebRTC 播放地址 | 播放客户端、对接方 |
 | `10935` | TCP + UDP | RTMP（预留） | 按需放行 |
 | `5540` | TCP + UDP | RTSP（预留） | 按需放行 |
 
 MySQL、Redis、WVP 后端和 ZLMediaKit 管理接口不对外暴露。不要把 3306、6379、18978
-或 ZLMediaKit HTTP 管理端口开放到公网。
+开放到公网；`18081` 只用于本机调试，也不要对外放行。
+
+### 2.1 修改媒体 HTTP 端口（`ZLM_HTTP_PORT`）
+
+WVP 页面里 MP4（FMP4）、HLS、TS、WebRTC 的播放地址由 `ZLM_HTTP_PORT` 决定，
+默认 `18082`。该端口同时用于 WVP 调用 ZLMediaKit 的接口，因此**三个文件必须保持一致**：
+
+| 位置 | 配置项 |
+|---|---|
+| `.env` | `ZLM_HTTP_PORT=18082` |
+| `config/zlm/config.ini` | `[http] port=18082`（ZLMediaKit 不支持变量，需手工同步） |
+| `config/nginx/wvp-web.conf.template` | `proxy_pass http://polaris-media:18082`（需手工同步） |
+| `config/wvp/application-docker.yml` | `media.http-port: ${ZLM_HTTP_PORT:80}`（已引用变量，无需再改） |
+
+> nginx 模板里写的是固定端口，不使用 `${ZLM_HTTP_PORT}` 变量。官方 nginx 镜像的
+> envsubst 只会替换**容器环境里存在**的变量，若容器没有重建（例如只执行了
+> `./compose.sh restart polaris-wvp-web` 或只同步了模板文件），变量取不到就会在配置里
+> 原样保留，nginx 启动报 `unknown "ZLM_HTTP_PORT" variable` 并导致 web 容器起不来。
+
+修改后重建相关容器并放行新端口（三个文件要一起改）：
+
+```bash
+vi .env                    # 改 ZLM_HTTP_PORT
+vi config/zlm/config.ini   # 同步 [http] port
+vi config/nginx/wvp-web.conf.template   # 同步 proxy_pass 端口
+./compose.sh up -d --force-recreate polaris-media polaris-wvp polaris-wvp-web polaris-adapter
+curl -I http://127.0.0.1:18082/index/api/getServerConfig?secret=su6TiedN2rVAmBbIDX0aa0QTiBJLBdcf
+```
+
+FLV 的端口由 `WVP_WEB_PORT`（18080，经 WVP Web 网关代理）决定，与 `ZLM_HTTP_PORT` 相互独立。
+不要在宿主机上占用 80 端口来暴露 ZLM，改用本节方式指定独立端口即可。
 
 如果单端口 RTP 与某些网络设备不兼容，可以后续切换多端口模式，并放行一个明确的
 TCP/UDP 端口范围（例如 `30000-30500`）。默认包先采用更容易维护的单端口模式。

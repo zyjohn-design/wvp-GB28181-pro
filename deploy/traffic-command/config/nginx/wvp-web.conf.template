@@ -16,8 +16,10 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
+    # 端口为 ZLMediaKit 的 HTTP 端口，必须与 config/zlm/config.ini 的 [http] port、
+    # .env 的 ZLM_HTTP_PORT 保持一致（这里写死，避免容器未重建时 envsubst 取不到变量导致 nginx 启动失败）。
     location ^~ /rtp/ {
-        proxy_pass http://polaris-media:80;
+        proxy_pass http://polaris-media:18082;
         proxy_http_version 1.1;
         proxy_buffering off;
         proxy_read_timeout 3600s;
@@ -25,7 +27,7 @@ server {
         proxy_set_header Connection "upgrade";
     }
     location ^~ /index/api/webrtc {
-        proxy_pass http://polaris-media:80;
+        proxy_pass http://polaris-media:18082;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
