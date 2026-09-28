@@ -1,5 +1,10 @@
 <!-- 侧边栏 -->
 
+* **接口文档**
+    * [系统完整接口文档](第三方对接接口手册.md)
+    * [历史接口索引](_content/api/reference.md)
+    * [历史模型索引](_content/api/models.md)
+    * [现场对接资料](外部系统视频接入与云台控制接口文档.md)
 * **编译与部署**
     * [编译](_content/introduction/compile.md)
     * [配置](_content/introduction/config.md)

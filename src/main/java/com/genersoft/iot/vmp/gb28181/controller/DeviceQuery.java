@@ -200,6 +200,7 @@ public class DeviceQuery {
 	@Parameter(name = "query", description = "查询内容")
 	@Parameter(name = "online", description = "是否在线")
 	@Parameter(name = "channelType", description = "设备/子目录-> false/true")
+	@Parameter(name = "resourceType", description = "资源类型：CHANNEL-视频通道，DIRECTORY-目录节点")
 	@GetMapping("/sub_channels/{deviceId}/{channelId}/channels")
 	public PageInfo<DeviceChannel> subChannels(@PathVariable String deviceId,
 												  @PathVariable String channelId,

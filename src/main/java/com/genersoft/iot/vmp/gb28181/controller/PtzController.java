@@ -20,6 +20,7 @@ import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.async.DeferredResult;
 
@@ -76,9 +77,9 @@ public class PtzController {
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
 	@Parameter(name = "channelId", description = "通道国标编号", required = true)
 	@Parameter(name = "command", description = "控制指令,允许值: left, right, up, down, upleft, upright, downleft, downright, zoomin, zoomout, stop", required = true)
-	@Parameter(name = "horizonSpeed", description = "水平速度(0-255)", required = true)
-	@Parameter(name = "verticalSpeed", description = "垂直速度(0-255)", required = true)
-	@Parameter(name = "zoomSpeed", description = "缩放速度(0-15)", required = true)
+	@Parameter(name = "horizonSpeed", description = "水平速度(0-255)，不传默认100", required = false)
+	@Parameter(name = "verticalSpeed", description = "垂直速度(0-255)，不传默认100", required = false)
+	@Parameter(name = "zoomSpeed", description = "缩放速度(0-15)；建议显式传值", required = false)
 	@GetMapping("/ptz/{deviceId}/{channelId}")
 	public void ptz(@PathVariable String deviceId,@PathVariable String channelId, String command, Integer horizonSpeed, Integer verticalSpeed, Integer zoomSpeed){
 
@@ -242,11 +243,8 @@ public class PtzController {
 	@Parameter(name = "channelId", description = "通道国标编号", required = true)
 	@Parameter(name = "presetId", description = "预置位编号(1-255)", required = true)
 	@GetMapping("/preset/add/{deviceId}/{channelId}")
-	public void addPreset(@PathVariable String deviceId, @PathVariable String channelId, Integer presetId) {
-		if (presetId == null || presetId < 1 || presetId > 255) {
-			throw new ControllerException(ErrorCode.ERROR100.getCode(), "预置位编号必须为1-255之间的数字");
-		}
-		frontEndCommand(deviceId, channelId, 0x81, 1, presetId, 0);
+	public void addPreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId) {
+		frontEndCommand(deviceId, channelId, 0x81, 1, PresetIdValidator.parse(presetId), 0);
 	}
 
 	@Operation(summary = "预置位指令-调用预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
@@ -254,11 +252,8 @@ public class PtzController {
 	@Parameter(name = "channelId", description = "通道国标编号", required = true)
 	@Parameter(name = "presetId", description = "预置位编号(1-255)", required = true)
 	@GetMapping("/preset/call/{deviceId}/{channelId}")
-	public void callPreset(@PathVariable String deviceId, @PathVariable String channelId, Integer presetId) {
-		if (presetId == null || presetId < 1 || presetId > 255) {
-			throw new ControllerException(ErrorCode.ERROR100.getCode(), "预置位编号必须为1-255之间的数字");
-		}
-		frontEndCommand(deviceId, channelId, 0x82, 1, presetId, 0);
+	public void callPreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId) {
+		frontEndCommand(deviceId, channelId, 0x82, 1, PresetIdValidator.parse(presetId), 0);
 	}
 
 	@Operation(summary = "预置位指令-删除预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
@@ -266,11 +261,8 @@ public class PtzController {
 	@Parameter(name = "channelId", description = "通道国标编号", required = true)
 	@Parameter(name = "presetId", description = "预置位编号(1-255)", required = true)
 	@GetMapping("/preset/delete/{deviceId}/{channelId}")
-	public void deletePreset(@PathVariable String deviceId, @PathVariable String channelId, Integer presetId) {
-		if (presetId == null || presetId < 1 || presetId > 255) {
-			throw new ControllerException(ErrorCode.ERROR100.getCode(), "预置位编号必须为1-255之间的数字");
-		}
-		frontEndCommand(deviceId, channelId, 0x83, 1, presetId, 0);
+	public void deletePreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId) {
+		frontEndCommand(deviceId, channelId, 0x83, 1, PresetIdValidator.parse(presetId), 0);
 	}
 
 	@Operation(summary = "巡航指令-加入巡航点", security = @SecurityRequirement(name = JwtUtils.HEADER))

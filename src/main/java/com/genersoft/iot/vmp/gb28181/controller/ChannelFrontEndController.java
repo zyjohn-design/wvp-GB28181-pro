@@ -38,11 +38,11 @@ public class ChannelFrontEndController {
 
 
     @Operation(summary = "云台控制", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道ID", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "command", description = "控制指令,允许值: left, right, up, down, upleft, upright, downleft, downright, zoomin, zoomout, stop", required = true)
-    @Parameter(name = "panSpeed", description = "水平速度(0-100)", required = true)
-    @Parameter(name = "tiltSpeed", description = "垂直速度(0-100)", required = true)
-    @Parameter(name = "zoomSpeed", description = "缩放速度(0-100)", required = true)
+    @Parameter(name = "panSpeed", description = "水平速度(0-100)，不传默认50", required = false)
+    @Parameter(name = "tiltSpeed", description = "垂直速度(0-100)，不传默认50", required = false)
+    @Parameter(name = "zoomSpeed", description = "缩放速度(0-100)，不传默认50", required = false)
     @GetMapping("/ptz")
     public DeferredResult<WVPResult<String>> ptz(Integer channelId, String command, Integer panSpeed, Integer tiltSpeed, Integer zoomSpeed){
 
@@ -131,9 +131,9 @@ public class ChannelFrontEndController {
 
 
     @Operation(summary = "光圈控制", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "command", description = "控制指令,允许值: in, out, stop", required = true)
-    @Parameter(name = "speed", description = "光圈速度(0-100)", required = true)
+    @Parameter(name = "speed", description = "光圈速度(0-100)，不传默认50", required = false)
     @GetMapping("/fi/iris")
     public DeferredResult<WVPResult<String>> iris(Integer channelId, String command, Integer speed){
 
@@ -185,9 +185,9 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "聚焦控制", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "command", description = "控制指令,允许值: near, far, stop", required = true)
-    @Parameter(name = "speed", description = "聚焦速度(0-100)", required = true)
+    @Parameter(name = "speed", description = "聚焦速度(0-100)，不传默认50", required = false)
     @GetMapping("/fi/focus")
     public DeferredResult<WVPResult<String>> focus(Integer channelId, String command, Integer speed){
 
@@ -237,7 +237,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "查询预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @GetMapping("/preset/query")
     public DeferredResult<WVPResult<List<Preset>>> queryPreset(Integer channelId) {
         if (log.isDebugEnabled()) {
@@ -292,40 +292,40 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "预置位指令-设置预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
-    @Parameter(name = "presetId", description = "预置位编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
+    @Parameter(name = "presetId", description = "预置位编号(1-255的整数)", required = true)
     @Parameter(name = "presetName", description = "预置位名称", required = true)
     @GetMapping("/preset/add")
-    public DeferredResult<WVPResult<String>> addPreset(Integer channelId, Integer presetId, String presetName) {
+    public DeferredResult<WVPResult<String>> addPreset(Integer channelId, @RequestParam(value = "presetId", required = false) String presetId, String presetName) {
         FrontEndControlCodeForPreset controlCode = new FrontEndControlCodeForPreset();
         controlCode.setCode(1);
-        controlCode.setPresetId(presetId);
+        controlCode.setPresetId(PresetIdValidator.parse(presetId));
         controlCode.setPresetName(presetName);
 
         return controlPreset(channelId, controlCode);
     }
 
     @Operation(summary = "预置位指令-调用预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
-    @Parameter(name = "presetId", description = "预置位编号(1-100)", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
+    @Parameter(name = "presetId", description = "预置位编号(1-255的整数)", required = true)
     @GetMapping("/preset/call")
-    public DeferredResult<WVPResult<String>> callPreset(Integer channelId, Integer presetId) {
+    public DeferredResult<WVPResult<String>> callPreset(Integer channelId, @RequestParam(value = "presetId", required = false) String presetId) {
         FrontEndControlCodeForPreset controlCode = new FrontEndControlCodeForPreset();
         controlCode.setCode(2);
-        controlCode.setPresetId(presetId);
+        controlCode.setPresetId(PresetIdValidator.parse(presetId));
 
         return controlPreset(channelId, controlCode);
     }
 
     @Operation(summary = "预置位指令-删除预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
-    @Parameter(name = "presetId", description = "预置位编号(1-100)", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
+    @Parameter(name = "presetId", description = "预置位编号(1-255的整数)", required = true)
     @GetMapping("/preset/delete")
-    public DeferredResult<WVPResult<String>> deletePreset(Integer channelId, Integer presetId) {
+    public DeferredResult<WVPResult<String>> deletePreset(Integer channelId, @RequestParam(value = "presetId", required = false) String presetId) {
 
         FrontEndControlCodeForPreset controlCode = new FrontEndControlCodeForPreset();
         controlCode.setCode(3);
-        controlCode.setPresetId(presetId);
+        controlCode.setPresetId(PresetIdValidator.parse(presetId));
 
         return controlPreset(channelId, controlCode);
     }
@@ -354,7 +354,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "巡航指令-加入巡航点", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "tourId", description = "巡航组号", required = true)
     @Parameter(name = "presetId", description = "预置位编号", required = true)
     @GetMapping("/tour/point/add")
@@ -369,7 +369,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "巡航指令-删除一个巡航点", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "tourId", description = "巡航组号(1-100)", required = true)
     @Parameter(name = "presetId", description = "预置位编号(0-100, 为0时删除整个巡航)", required = true)
     @GetMapping("/tour/point/delete")
@@ -383,7 +383,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "巡航指令-设置巡航速度", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "tourId", description = "巡航组号(0-100)", required = true)
     @Parameter(name = "speed", description = "巡航速度(1-4095)", required = true)
     @Parameter(name = "presetId", description = "预置位编号", required = true)
@@ -398,7 +398,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "巡航指令-设置巡航停留时间", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "tourId", description = "巡航组号", required = true)
     @Parameter(name = "time", description = "巡航停留时间(1-4095)", required = true)
     @Parameter(name = "presetId", description = "预置位编号", required = true)
@@ -413,7 +413,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "巡航指令-开始巡航", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "tourId", description = "巡航组号)", required = true)
     @GetMapping("/tour/start")
     public DeferredResult<WVPResult<String>> startCruise(Integer channelId, Integer tourId) {
@@ -424,7 +424,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "巡航指令-停止巡航", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "tourId", description = "巡航组号", required = true)
     @GetMapping("/tour/stop")
     public DeferredResult<WVPResult<String>> stopCruise(Integer channelId, Integer tourId) {
@@ -459,7 +459,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "扫描指令-开始自动扫描", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "scanId", description = "扫描组号(0-100)", required = true)
     @GetMapping("/scan/start")
     public DeferredResult<WVPResult<String>> startScan(Integer channelId, Integer scanId) {
@@ -471,7 +471,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "扫描指令-停止自动扫描", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "scanId", description = "扫描组号(0-100)", required = true)
     @GetMapping("/scan/stop")
     public DeferredResult<WVPResult<String>> stopScan(Integer channelId, Integer scanId) {
@@ -482,7 +482,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "扫描指令-设置自动扫描左边界", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "scanId", description = "扫描组号(0-100)", required = true)
     @GetMapping("/scan/set/left")
     public DeferredResult<WVPResult<String>> setScanLeft(Integer channelId, Integer scanId) {
@@ -493,7 +493,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "扫描指令-设置自动扫描右边界", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "scanId", description = "扫描组号(0-100)", required = true)
     @GetMapping("/scan/set/right")
     public DeferredResult<WVPResult<String>> setScanRight(Integer channelId, Integer scanId) {
@@ -505,7 +505,7 @@ public class ChannelFrontEndController {
 
 
     @Operation(summary = "扫描指令-设置自动扫描速度", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "scanId", description = "扫描组号(0-100)", required = true)
     @Parameter(name = "speed", description = "自动扫描速度(1-4095)", required = true)
     @GetMapping("/scan/set/speed")
@@ -519,7 +519,7 @@ public class ChannelFrontEndController {
 
 
     @Operation(summary = "辅助开关控制指令-雨刷控制", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "command", description = "控制指令,允许值: on, off", required = true)
     @GetMapping("/wiper")
     public DeferredResult<WVPResult<String>> wiper(Integer channelId, String command){
@@ -561,7 +561,7 @@ public class ChannelFrontEndController {
 
     @Operation(summary = "辅助开关控制指令", security = @SecurityRequirement(name = JwtUtils.HEADER))
 
-    @Parameter(name = "channelId", description = "通道国标编号", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "command", description = "控制指令,允许值: on, off", required = true)
     @Parameter(name = "auxiliaryId", description = "开关编号", required = true)
     @GetMapping("/auxiliary")
@@ -601,7 +601,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "看守位设置", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道ID", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "enabled", description = "是否开启看守位", required = true)
     @Parameter(name = "resetTime", description = "自动归位时间间隔（秒）")
     @Parameter(name = "presetIndex", description = "调用预置位编号")
@@ -637,7 +637,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "拉框放大", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道ID", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "length", description = "播放窗口长度像素值", required = true)
     @Parameter(name = "width", description = "播放窗口宽度像素值", required = true)
     @Parameter(name = "midPointX", description = "拉框中心的横轴坐标像素值", required = true)
@@ -682,7 +682,7 @@ public class ChannelFrontEndController {
     }
 
     @Operation(summary = "拉框缩小", security = @SecurityRequirement(name = JwtUtils.HEADER))
-    @Parameter(name = "channelId", description = "通道ID", required = true)
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "length", description = "播放窗口长度像素值", required = true)
     @Parameter(name = "width", description = "播放窗口宽度像素值", required = true)
     @Parameter(name = "midPointX", description = "拉框中心的横轴坐标像素值", required = true)

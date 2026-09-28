@@ -27,6 +27,8 @@ WEB VIDEO PLATFORM是一个基于GB28181-2016、部标808、部标1078标准实�
 wvp使用文档 [https://doc.wvp-pro.cn](https://doc.wvp-pro.cn)  
 ZLM使用文档 [https://github.com/ZLMediaKit/ZLMediaKit](https://github.com/ZLMediaKit/ZLMediaKit)
 
+项目完整接口文档：[系统接口文档](doc/第三方对接接口手册.md)（全部 HTTP 路由、模型字段及第三方对接流程统一在此维护）
+
 # gitee仓库
 https://gitee.com/pan648540858/wvp-GB28181-pro.git
 

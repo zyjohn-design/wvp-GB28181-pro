@@ -303,6 +303,7 @@ public class ChannelController {
     }
 
     @Operation(summary = "播放通道", security = @SecurityRequirement(name = JwtUtils.HEADER))
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @GetMapping("/play")
     public DeferredResult<WVPResult<StreamContent>> play(HttpServletRequest request,  Integer channelId){
         Assert.notNull(channelId,"参数异常");
@@ -345,6 +346,7 @@ public class ChannelController {
     }
 
     @Operation(summary = "停止播放通道", security = @SecurityRequirement(name = JwtUtils.HEADER))
+    @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @GetMapping("/play/stop")
     public void stopPlay(Integer channelId){
         Assert.notNull(channelId,"参数异常");

@@ -48,7 +48,8 @@ public class UserApiKeyController {
     @Parameter(name = "userId", description = "用户Id", required = true)
     @Parameter(name = "app", description = "应用名称", required = false)
     @Parameter(name = "remark", description = "备注信息", required = false)
-    @Parameter(name = "expiredAt", description = "过期时间（不传代表永不过期）", required = false)
+    @Parameter(name = "expiresAt", description = "过期时间，格式 yyyy-MM-dd HH:mm:ss；不传代表永不过期", required = false)
+    @Parameter(name = "enable", description = "是否启用；不传默认 false", required = false)
     @Transactional
     public synchronized void add(
             @RequestParam(required = true) int userId,

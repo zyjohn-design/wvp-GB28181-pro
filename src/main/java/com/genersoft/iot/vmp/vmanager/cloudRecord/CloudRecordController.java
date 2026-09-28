@@ -172,7 +172,7 @@ public class CloudRecordController {
     @Parameter(name = "startTime", description = "鉴权ID", required = false)
     @Parameter(name = "endTime", description = "鉴权ID", required = false)
     @Parameter(name = "callId", description = "鉴权ID", required = false)
-    @Parameter(name = "remoteHost", description = "返回地址时的远程地址", required = false)
+    @Parameter(name = "remoteHost", description = "用于拼接播放地址的完整外部地址，含协议、主机和端口，如 http://host:18082", required = false)
     public String addTask(HttpServletRequest request, @RequestParam(required = false) String app, @RequestParam(required = false) String stream, @RequestParam(required = false) String mediaServerId, @RequestParam(required = false) String startTime, @RequestParam(required = false) String endTime, @RequestParam(required = false) String callId, @RequestParam(required = false) String remoteHost) {
         MediaServer mediaServer;
         if (mediaServerId == null) {
@@ -529,6 +529,7 @@ public class CloudRecordController {
     @Parameter(name = "endTime", description = "结束时间(yyyy-MM-dd HH:mm:ss)", required = false)
     @Parameter(name = "mediaServerId", description = "流媒体ID，置空则查询全部流媒体", required = false)
     @Parameter(name = "callId", description = "每次录像的唯一标识，置空则查询全部流媒体", required = false)
+    @Parameter(name = "remoteHost", description = "用于拼接播放/下载地址的完整外部地址，含协议、主机和端口，如 http://host:18082；不传时使用默认媒体节点地址", required = false)
     public PageInfo<CloudRecordUrl> getListWithUrl(HttpServletRequest request, @RequestParam(required = false) String query, @RequestParam(required = false) String app, @RequestParam(required = false) String stream, @RequestParam int page, @RequestParam int count, @RequestParam(required = false) String startTime, @RequestParam(required = false) String endTime, @RequestParam(required = false) String mediaServerId, @RequestParam(required = false) String callId, @RequestParam(required = false) String remoteHost
 
     ) {

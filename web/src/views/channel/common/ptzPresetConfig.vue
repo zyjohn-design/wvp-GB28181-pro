@@ -40,6 +40,8 @@
 </template>
 
 <script>
+import { getNextAvailablePresetId, parsePresetId } from '@/utils/presetId'
+
 export default {
   name: 'ChPtzPresetConfig',
   props: {
@@ -71,19 +73,27 @@ export default {
     openAdd() {
       this.addPresetId = this.getNextAvailableId()
       this.showAddForm = true
+      if (this.addPresetId === null) {
+        this.$message({ showClose: true, message: '无法自动分配序号，请手动输入1-255的整数', type: 'warning' })
+      }
     },
     cancelAdd() {
       this.showAddForm = false
       this.addPresetId = 1
     },
     confirmAdd() {
-      const exists = this.presetList.some(p => p.presetId === this.addPresetId)
+      const id = parsePresetId(this.addPresetId)
+      if (id === null) {
+        this.$message({ showClose: true, message: '预置位编号必须为1-255之间的整数', type: 'warning' })
+        return
+      }
+      const exists = this.presetList.some(p => parsePresetId(p.presetId) === id)
       if (exists) {
-        this.$message({ showClose: true, message: '序号 ' + this.addPresetId + ' 已存在', type: 'warning' })
+        this.$message({ showClose: true, message: '序号 ' + id + ' 已存在', type: 'warning' })
         return
       }
       this.submitting = true
-      this.$store.dispatch('commonChanel/addPreset', { channelId: this.channelId, presetId: this.addPresetId, presetName: '' })
+      this.$store.dispatch('commonChanel/addPreset', { channelId: this.channelId, presetId: id, presetName: '' })
         .then(() => {
           this.showAddForm = false
           setTimeout(() => {
@@ -96,7 +106,12 @@ export default {
         })
     },
     callPreset(preset) {
-      this.$store.dispatch('commonChanel/callPreset', { channelId: this.channelId, presetId: preset.presetId })
+      const id = parsePresetId(preset.presetId)
+      if (id === null) {
+        this.$message({ showClose: true, message: '设备返回的预置位编号不是1-255的整数，无法调用', type: 'warning' })
+        return
+      }
+      this.$store.dispatch('commonChanel/callPreset', { channelId: this.channelId, presetId: id })
         .then(() => {
           this.$message({ showClose: true, message: '调用成功', type: 'success' })
         }).catch(error => {
@@ -104,6 +119,11 @@ export default {
         })
     },
     delPreset(preset) {
+      const id = parsePresetId(preset.presetId)
+      if (id === null) {
+        this.$message({ showClose: true, message: '设备返回的预置位编号不是1-255的整数，无法删除', type: 'warning' })
+        return
+      }
       this.$confirm('确定删除此预置位', '提示', {
         dangerouslyUseHTMLString: true,
         confirmButtonText: '确定',
@@ -111,7 +131,7 @@ export default {
         type: 'warning'
       }).then(() => {
         this.deletingId = preset.presetId
-        this.$store.dispatch('commonChanel/deletePreset', { channelId: this.channelId, presetId: preset.presetId })
+        this.$store.dispatch('commonChanel/deletePreset', { channelId: this.channelId, presetId: id })
           .then(() => {
             this.getPresetList()
           }).catch(error => {
@@ -123,6 +143,10 @@ export default {
     },
     clearAll() {
       if (this.presetList.length === 0) return
+      if (this.presetList.some(p => parsePresetId(p.presetId) === null)) {
+        this.$message({ showClose: true, message: '列表含无效预置位编号，无法清空', type: 'warning' })
+        return
+      }
       this.$confirm('确定清空所有预置点?', '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -130,7 +154,7 @@ export default {
       }).then(() => {
         this.clearing = true
         const promises = this.presetList.map(p =>
-          this.$store.dispatch('commonChanel/deletePreset', { channelId: this.channelId, presetId: p.presetId })
+          this.$store.dispatch('commonChanel/deletePreset', { channelId: this.channelId, presetId: parsePresetId(p.presetId) })
         )
         Promise.all(promises).then(() => {
           this.presetList = []
@@ -143,12 +167,7 @@ export default {
       }).catch(() => {})
     },
     getNextAvailableId() {
-      if (!this.presetList || this.presetList.length === 0) return 1
-      const used = this.presetList.map(p => Number(p.presetId)).sort((a, b) => a - b)
-      for (let i = 0; i < used.length - 1; i++) {
-        if (used[i + 1] - used[i] > 1) return used[i] + 1
-      }
-      return used[used.length - 1] + 1
+      return getNextAvailablePresetId(this.presetList)
     }
   }
 }
