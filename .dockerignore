@@ -3,3 +3,4 @@ docker/volumes
 # 带入宿主机的 node_modules/target 会拖慢构建，且宿主机原生二进制可能污染 Linux 构建。
 target
 web/node_modules
+deploy/traffic-command/releases
