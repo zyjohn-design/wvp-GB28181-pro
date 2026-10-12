@@ -10,6 +10,7 @@ TEMPLATE_DIR="$SCRIPT_DIR/update-package-templates/offline"
 RELEASES_DIR="$SCRIPT_DIR/releases"
 TARGET_ARCH=${1:-arm64}
 FORCE_REBUILD=${FORCE_REBUILD:-0}
+USE_LOCAL_BASE_IMAGES=${USE_LOCAL_BASE_IMAGES:-0}
 
 case "$TARGET_ARCH" in
     amd64|arm64) ;;
@@ -234,7 +235,14 @@ echo "[2/6] 拉取基础镜像（${PLATFORM}）"
 while IFS= read -r image; do
     [ -n "$image" ] || continue
     echo "  - $image"
-    docker pull --platform "$PLATFORM" "$image" >/dev/null
+    if [ "$USE_LOCAL_BASE_IMAGES" = 1 ]; then
+        docker image inspect "$image" >/dev/null 2>&1 || {
+            echo "错误：本地缺少基础镜像 ${image}，无法离线打包。" >&2
+            exit 1
+        }
+    else
+        docker pull --platform "$PLATFORM" "$image" >/dev/null
+    fi
 done <<EOF
 $BASE_IMAGES
 EOF
