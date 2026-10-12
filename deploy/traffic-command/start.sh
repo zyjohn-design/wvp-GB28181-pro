@@ -9,5 +9,8 @@ if ! ./verify-images.sh --local-only >/dev/null 2>&1; then
     ./load-images.sh
 fi
 
+# 导入后必须复核：架构不符时在这里中止，而不是让容器反复报 exec format error。
+./verify-images.sh --local-only
+
 ./compose.sh up -d
 ./compose.sh ps

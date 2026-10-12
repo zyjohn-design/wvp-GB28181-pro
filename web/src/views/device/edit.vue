@@ -19,6 +19,14 @@
           show-icon
           style="margin-bottom: 18px;"
         />
+        <el-alert
+          v-if="saveError"
+          :title="saveError"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 18px;"
+        />
         <el-form ref="form" :rules="rules" :model="form" label-width="100px">
           <el-alert
             :title="formAccessType === 'PLATFORM' ? '下级平台配置说明' : '国标设备配置说明'"
@@ -83,7 +91,7 @@
           </el-form-item>
           <el-form-item>
             <div style="float: right;">
-              <el-button type="primary" @click="onSubmit">确认</el-button>
+              <el-button type="primary" :loading="isSaving" @click="onSubmit">确认</el-button>
               <el-button @click="close">取消</el-button>
             </div>
 
@@ -96,6 +104,7 @@
 
 <script>
 import elDragDialog from '@/directive/el-drag-dialog'
+import { getSaveErrorMessage } from '@/utils/saveError'
 
 export default {
   name: 'DeviceEdit',
@@ -125,6 +134,8 @@ export default {
       listChangeCallback: null,
       showDialog: false,
       isLoging: false,
+      isSaving: false,
+      saveError: '',
       hostNames: [],
       mediaServerList: [], // 滅体节点列表
       form: {},
@@ -168,6 +179,7 @@ export default {
   methods: {
     openDialog: function(row, callback, registerHint) {
       this.showDialog = true
+      this.saveError = ''
       this.isEdit = Boolean(row)
       this.registerHint = registerHint || ''
       this.listChangeCallback = callback
@@ -176,6 +188,7 @@ export default {
     },
     openDialogForAdd: function(preset, callback, registerHint) {
       this.showDialog = true
+      this.saveError = ''
       this.isEdit = false
       this.registerHint = registerHint || ''
       this.listChangeCallback = callback
@@ -200,11 +213,16 @@ export default {
         })
     },
     onSubmit: function() {
+      if (this.isSaving) {
+        return
+      }
+      this.saveError = ''
       this.$refs.form.validate((valid) => {
         if (!valid) {
           return
         }
         const action = this.isEdit ? 'device/update' : 'device/add'
+        this.isSaving = true
         this.$store.dispatch(action, this.form)
           .then(() => {
             if (this.listChangeCallback) {
@@ -212,13 +230,17 @@ export default {
             }
           })
           .catch((error) => {
-            this.$message.error(error.message || error)
+            this.saveError = getSaveErrorMessage(error)
+          })
+          .finally(() => {
+            this.isSaving = false
           })
       })
     },
     close: function() {
       this.showDialog = false
       this.registerHint = ''
+      this.saveError = ''
       if (this.$refs.form) {
         this.$refs.form.resetFields()
       }
