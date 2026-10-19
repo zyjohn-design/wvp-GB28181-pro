@@ -17,7 +17,6 @@ import com.genersoft.iot.vmp.utils.DateUtil;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
-import com.google.common.base.Joiner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
@@ -25,10 +24,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
@@ -48,79 +50,67 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
 
 
 
-    /**
-     * 流离开的处理
-     */
+    // 定时任务、接口调用和异步媒体回调会同时访问。
+    final Map<Integer, StreamInfo> recordStreamMap = new ConcurrentHashMap<>();
+    private final Set<Integer> startingChannels = ConcurrentHashMap.newKeySet();
+
+    /** 流断开后重新检查当前计划，防止已结束的任务被重新拉起。 */
     @Async
     @EventListener
-    public void onApplicationEvent(MediaDepartureEvent event) {
-        // 流断开，检查是否还处于录像状态， 如果是则继续录像
+    public synchronized void onApplicationEvent(MediaDepartureEvent event) {
         Integer channelId = recording(event.getApp(), event.getStream());
-        if(channelId == null) {
-            return;
-        }
-        // 重新拉起
-        CommonGBChannel channel = channelMapper.queryById(channelId);
-        if (channel == null) {
-            log.warn("[录制计划] 流离开时拉起需要录像的流时, 发现通道不存在, id: {}", channelId);
-            return;
-        }
-        // 开启点播,
-        channelPlayService.play(channel, null, true, ((code, msg, streamInfo) -> {
-            if (code == InviteErrorCode.SUCCESS.getCode() && streamInfo != null) {
-                log.info("[录像] 流离开时拉起需要录像的流, 开启成功, 通道ID: {}", channel.getGbId());
-                recordStreamMap.put(channel.getGbId(), streamInfo);
-            } else {
-                recordStreamMap.remove(channelId);
-                log.info("[录像] 流离开时拉起需要录像的流, 开启失败, 十分钟后重试,  通道ID: {}", channel.getGbId());
-            }
-        }));
+        if (channelId == null) return;
+        StreamInfo info = recordStreamMap.get(channelId);
+        if (event.getMediaServer() != null && info.getMediaServer() != null
+                && !event.getMediaServer().getId().equals(info.getMediaServer().getId())) return;
+        recordStreamMap.remove(channelId);
+        execution();
     }
 
-    Map<Integer, StreamInfo> recordStreamMap = new HashMap<>();
-
     @Scheduled(fixedRate = 1, timeUnit = TimeUnit.MINUTES)
-    public void execution() {
-        // 查询现在需要录像的通道Id
-        List<Integer> startChannelIdList = queryCurrentChannelRecord();
-
-        if (startChannelIdList == null || startChannelIdList.isEmpty()) {
-            // 当前没有录像任务, 如果存在旧的正在录像的就移除
-            if(!recordStreamMap.isEmpty()) {
-                Set<Integer> recordStreamSet = new HashSet<>(recordStreamMap.keySet());
-                stopStreams(recordStreamSet, recordStreamMap);
-                recordStreamMap.clear();
-            }
-        }else {
-            // 当前存在录像任务, 获取正在录像中存在但是当前录制列表不存在的内容,进行停止; 获取正在录像中没有但是当前需录制的列表中存在的进行开启.
-            Set<Integer> recordStreamSet = new HashSet<>(recordStreamMap.keySet());
-            startChannelIdList.forEach(recordStreamSet::remove);
-            if (!recordStreamSet.isEmpty()) {
-                // 正在录像中存在但是当前录制列表不存在的内容,进行停止;
-                stopStreams(recordStreamSet, recordStreamMap);
-            }
-
-            // 移除startChannelIdList中已经在录像的部分, 剩下的都是需要新添加的(正在录像中没有但是当前需录制的列表中存在的进行开启)
-            recordStreamMap.keySet().forEach(startChannelIdList::remove);
-            if (!startChannelIdList.isEmpty()) {
-                // 获取所有的关联的通道
-                List<CommonGBChannel> channelList = channelMapper.queryByIds(startChannelIdList);
-                if (!channelList.isEmpty()) {
-                    // 查找是否已经开启录像, 如果没有则开启录像
-                    for (CommonGBChannel channel : channelList) {
-                        // 开启点播,
-                        channelPlayService.play(channel, null, true, ((code, msg, streamInfo) -> {
-                            if (code == InviteErrorCode.SUCCESS.getCode() && streamInfo != null) {
-                                log.info("[录像] 开启成功, 通道ID: {}", channel.getGbId());
-                                recordStreamMap.put(channel.getGbId(), streamInfo);
-                            } else {
-                                log.info("[录像] 开启失败, 十分钟后重试,  通道ID: {}", channel.getGbId());
+    public synchronized void execution() {
+        Set<Integer> required = new HashSet<>(queryCurrentChannelRecord());
+        Set<Integer> stopped = new HashSet<>(recordStreamMap.keySet());
+        stopped.removeAll(required);
+        stopStreams(stopped, recordStreamMap);
+        required.removeAll(recordStreamMap.keySet());
+        required.removeAll(startingChannels);
+        if (required.isEmpty()) return;
+        for (CommonGBChannel channel : channelMapper.queryByIds(new ArrayList<>(required))) {
+            Integer channelId = channel.getGbId();
+            if (!startingChannels.add(channelId)) continue;
+            try {
+                channelPlayService.play(channel, null, true, (code, msg, streamInfo) -> {
+                    synchronized (RecordPlanServiceImpl.this) {
+                        try {
+                            if (code != InviteErrorCode.SUCCESS.getCode() || streamInfo == null) {
+                                log.warn("[录制计划] 点播失败，下次调度重试，通道ID: {}，原因: {}", channelId, msg);
+                                return;
                             }
-                        }));
+                            // 异步点播完成时，计划可能已经被删除、修改或解除关联。
+                            if (!queryCurrentChannelRecord().contains(channelId)) {
+                                recordStreamMap.put(channelId, streamInfo);
+                                stopStreams(Collections.singleton(channelId), recordStreamMap);
+                                return;
+                            }
+                            // 复用已有直播/推流时，也必须显式开启录像。
+                            if (mediaServerService.startRecord(streamInfo.getMediaServer(), streamInfo.getApp(), streamInfo.getStream())) {
+                                recordStreamMap.put(channelId, streamInfo);
+                                log.info("[录制计划] 开始录像，通道ID: {}", channelId);
+                            } else {
+                                log.warn("[录制计划] 开启录像失败，请检查媒体节点是否支持动态MP4录像，下次调度重试，通道ID: {}，节点类型: {}",
+                                        channelId, streamInfo.getMediaServer().getType());
+                            }
+                        } catch (Exception e) {
+                            log.error("[录制计划] 开启录像异常，通道ID: {}", channelId, e);
+                        } finally {
+                            startingChannels.remove(channelId);
+                        }
                     }
-                } else {
-                    log.error("[录制计划] 数据异常, 这些关联的通道已经不存在了: {}", Joiner.on(",").join(startChannelIdList));
-                }
+                });
+            } catch (Exception e) {
+                startingChannels.remove(channelId);
+                log.error("[录制计划] 点播异常，下次调度重试，通道ID: {}", channelId, e);
             }
         }
     }
@@ -129,7 +119,7 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
      * 获取当前时间段应该录像的通道Id列表
      */
     private List<Integer> queryCurrentChannelRecord(){
-        // 获取当前时间在一周内的序号, 数据库存储的从第几个30分钟开始, 0-47, 包括首尾
+        // 前端和数据库均使用当天分钟数，区间为[start, stop)。
         LocalDateTime now = LocalDateTime.now();
         int week = now.getDayOfWeek().getValue();
         int index = now.getHour() * 60 + now.getMinute();
@@ -138,31 +128,33 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
         return recordPlanMapper.queryRecordIng(week, index);
     }
 
-    private void stopStreams(Collection<Integer> channelIds, Map<Integer, StreamInfo> recordStreamMap) {
+    private void stopStreams(Collection<Integer> channelIds, Map<Integer, StreamInfo> streams) {
         for (Integer channelId : channelIds) {
+            StreamInfo streamInfo = streams.get(channelId);
+            if (streamInfo == null) continue;
             try {
-                StreamInfo streamInfo = recordStreamMap.get(channelId);
-                if (streamInfo == null) {
+                // 先停止MP4，仍有观众时保留直播；失败时保留状态供下次调度重试。
+                if (!mediaServerService.stopRecord(streamInfo.getMediaServer(), streamInfo.getApp(), streamInfo.getStream())) {
+                    log.warn("[录制计划] 停止录像失败，下次调度重试，通道ID: {}", channelId);
                     continue;
                 }
-                // 查看是否有人观看,存在则不做处理,等待后续自然处理,如果无人观看,则关闭该流
+                recordStreamMap.remove(channelId, streamInfo);
                 MediaInfo mediaInfo = mediaServerService.getMediaInfo(streamInfo.getMediaServer(), streamInfo.getApp(), streamInfo.getStream());
-                if (mediaInfo.getReaderCount() == null ||  mediaInfo.getReaderCount() == 0) {
+                if (mediaInfo != null && Integer.valueOf(0).equals(mediaInfo.getReaderCount())) {
                     mediaServerService.closeStreams(streamInfo.getMediaServer(), streamInfo.getApp(), streamInfo.getStream());
-                    log.info("[录制计划] 停止, 通道ID: {}", channelId);
                 }
-            }catch (Exception e) {
-                log.error("[录制计划] 停止时异常", e);
-            }finally {
-                recordStreamMap.remove(channelId);
+                log.info("[录制计划] 停止录像，通道ID: {}", channelId);
+            } catch (Exception e) {
+                log.error("[录制计划] 停止时异常，通道ID: {}", channelId, e);
             }
         }
     }
 
     @Override
     public Integer recording(String app, String stream) {
-        for (Integer channelId : recordStreamMap.keySet()) {
-            StreamInfo streamInfo = recordStreamMap.get(channelId);
+        for (Map.Entry<Integer, StreamInfo> entry : recordStreamMap.entrySet()) {
+            Integer channelId = entry.getKey();
+            StreamInfo streamInfo = entry.getValue();
             if (streamInfo != null && streamInfo.getApp().equals(app) && streamInfo.getStream().equals(stream)) {
                 return channelId;
             }
@@ -173,6 +165,8 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
     @Override
     @Transactional
     public void add(RecordPlan plan) {
+        validatePlan(plan);
+        if (plan.getSnap() == null) plan.setSnap(false);
         plan.setCreateTime(DateUtil.getNow());
         plan.setUpdateTime(DateUtil.getNow());
         recordPlanMapper.add(plan);
@@ -182,7 +176,7 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
             }
             recordPlanMapper.batchAddItem(plan.getId(), plan.getPlanItemList());
         }
-        // TODO  更新录像队列
+        refreshAfterCommit();
     }
 
     @Override
@@ -192,35 +186,21 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
             return null;
         }
         List<RecordPlanItem> recordPlanItemList = recordPlanMapper.getItemList(planId);
-        if (!recordPlanItemList.isEmpty()) {
-            recordPlan.setPlanItemList(recordPlanItemList);
-        }
+        recordPlan.setPlanItemList(recordPlanItemList);
         return recordPlan;
     }
 
     @Override
     @Transactional
     public void update(RecordPlan plan) {
+        validatePlan(plan);
+        RecordPlan existing = requirePlan(plan.getId());
+        if (plan.getSnap() == null) plan.setSnap(existing.getSnap());
         plan.setUpdateTime(DateUtil.getNow());
         recordPlanMapper.update(plan);
         recordPlanMapper.cleanItems(plan.getId());
-        if (plan.getPlanItemList() != null && !plan.getPlanItemList().isEmpty()){
-            List<RecordPlanItem> planItemList = new ArrayList<>();
-            for (RecordPlanItem recordPlanItem : plan.getPlanItemList()) {
-                if (recordPlanItem.getStart() == null || recordPlanItem.getStop() == null || recordPlanItem.getWeekDay() == null){
-                    continue;
-                }
-                if (recordPlanItem.getPlanId() == null) {
-                    recordPlanItem.setPlanId(plan.getId());
-                }
-                planItemList.add(recordPlanItem);
-            }
-            if(!planItemList.isEmpty()) {
-                recordPlanMapper.batchAddItem(plan.getId(), planItemList);
-            }
-        }
-        // TODO  更新录像队列
-
+        recordPlanMapper.batchAddItem(plan.getId(), plan.getPlanItemList());
+        refreshAfterCommit();
     }
 
     @Override
@@ -234,7 +214,7 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
         channelMapper.removeRecordPlanByPlanId(recordPlan.getId());
         recordPlanMapper.cleanItems(planId);
         recordPlanMapper.delete(planId);
-        // TODO  更新录像队列
+        refreshAfterCommit();
     }
 
     @Override
@@ -258,10 +238,11 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
         if (planId == null) {
             channelMapper.removeRecordPlan(channelIds);
         }else {
+            requirePlan(planId);
             channelMapper.addRecordPlan(channelIds, planId);
         }
         // 查看当前的待录制列表是否变化,如果变化,则调用录制计划马上开始录制
-        execution();
+        refreshAfterCommit();
     }
 
     @Override
@@ -278,11 +259,61 @@ public class RecordPlanServiceImpl implements IRecordPlanService {
 
     @Override
     public void linkAll(Integer planId) {
+        requirePlan(planId);
         channelMapper.addRecordPlanForAll(planId);
+        refreshAfterCommit();
     }
 
     @Override
     public void cleanAll(Integer planId) {
+        requirePlan(planId);
         channelMapper.removeRecordPlanByPlanId(planId);
+        refreshAfterCommit();
+    }
+
+    private RecordPlan requirePlan(Integer planId) {
+        RecordPlan plan = planId == null || planId <= 0 ? null : recordPlanMapper.get(planId);
+        if (plan == null) throw new ControllerException(ErrorCode.ERROR100.getCode(), "录制计划不存在");
+        return plan;
+    }
+
+    private void validatePlan(RecordPlan plan) {
+        if (plan == null || plan.getName() == null || plan.getName().trim().isEmpty()) {
+            throw new ControllerException(ErrorCode.ERROR100.getCode(), "录制计划名称不能为空");
+        }
+        plan.setName(plan.getName().trim());
+        if (plan.getName().length() > 255) {
+            throw new ControllerException(ErrorCode.ERROR100.getCode(), "录制计划名称不能超过255个字符");
+        }
+        if (plan.getPlanItemList() == null || plan.getPlanItemList().isEmpty()) {
+            throw new ControllerException(ErrorCode.ERROR100.getCode(), "请至少选择一个录制时间段");
+        }
+        for (RecordPlanItem item : plan.getPlanItemList()) {
+            if (item == null || item.getWeekDay() == null || item.getWeekDay() < 1 || item.getWeekDay() > 7
+                    || item.getStart() == null || item.getStop() == null || item.getStart() < 0
+                    || item.getStop() > 1440 || item.getStart() >= item.getStop()) {
+                throw new ControllerException(ErrorCode.ERROR100.getCode(), "录制时间段无效：星期须为1-7，分钟须满足0≤开始<结束≤1440");
+            }
+        }
+    }
+
+    private void refreshAfterCommit() {
+        Runnable refresh = () -> {
+            try {
+                execution();
+            } catch (Exception e) {
+                log.error("[录制计划] 刷新任务失败，下次调度重试", e);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    refresh.run();
+                }
+            });
+        } else {
+            refresh.run();
+        }
     }
 }

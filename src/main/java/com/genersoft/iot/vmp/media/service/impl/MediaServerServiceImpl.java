@@ -660,6 +660,18 @@ public class MediaServerServiceImpl implements IMediaServerService {
     }
 
     @Override
+    public boolean startRecord(MediaServer mediaServer, String app, String stream) {
+        IMediaNodeServerService service = nodeServerServiceMap.get(mediaServer.getType());
+        return service != null && service.startRecord(mediaServer, app, stream);
+    }
+
+    @Override
+    public boolean stopRecord(MediaServer mediaServer, String app, String stream) {
+        IMediaNodeServerService service = nodeServerServiceMap.get(mediaServer.getType());
+        return service != null && service.stopRecord(mediaServer, app, stream);
+    }
+
+    @Override
     public void closeStreams(MediaServer mediaServer, String app, String stream) {
         IMediaNodeServerService mediaNodeServerService = nodeServerServiceMap.get(mediaServer.getType());
         if (mediaNodeServerService == null) {

@@ -91,6 +91,12 @@ public interface IMediaServerService {
 
     String getFfmpegCmd(MediaServer mediaServer, String cmdKey);
 
+    /** 开启指定流的MP4录像，包括已存在的直播流。 */
+    boolean startRecord(MediaServer mediaServer, String app, String stream);
+
+    /** 停止MP4录像，保留直播。 */
+    boolean stopRecord(MediaServer mediaServer, String app, String stream);
+
     void closeStreams(MediaServer mediaServerItem, String app, String stream);
 
     WVPResult<String> addStreamProxy(MediaServer mediaServerItem, String app, String stream, String url, boolean enableAudio, boolean enableMp4, String rtpType, Integer timeout);

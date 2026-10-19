@@ -26,6 +26,15 @@ public interface IMediaNodeServerService {
 //    void closeJTTServer(MediaServer mediaServer, String streamId, CommonCallback<Boolean> callback);
 
 
+    /** 媒体节点尚未适配动态录像时，明确返回失败。 */
+    default boolean startRecord(MediaServer mediaServer, String app, String stream) {
+        return false;
+    }
+
+    default boolean stopRecord(MediaServer mediaServer, String app, String stream) {
+        return false;
+    }
+
     void closeStreams(MediaServer mediaServer, String app, String stream);
 
     Boolean updateRtpServerSSRC(MediaServer mediaServer, String app, String stream, String ssrc);

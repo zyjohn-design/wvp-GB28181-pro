@@ -67,10 +67,11 @@ public class RecordPlanController {
         List<Integer> channelIds = new ArrayList<>();
         if (param.getChannelIds() != null) {
             channelIds.addAll(param.getChannelIds());
-        }else {
+        }
+        if (param.getDeviceDbIds() != null) {
             List<Integer> chanelIdList = deviceChannelService.queryChaneIdListByDeviceDbIds(param.getDeviceDbIds());
             if (chanelIdList != null && !chanelIdList.isEmpty()) {
-                channelIds = chanelIdList;
+                channelIds.addAll(chanelIdList);
             }
         }
         recordPlanService.link(channelIds, param.getPlanId());

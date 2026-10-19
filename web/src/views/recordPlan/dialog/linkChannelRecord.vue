@@ -151,10 +151,11 @@ export default {
     },
     currentChange: function(val) {
       this.currentPage = val
-      this.initData()
+      this.getChannelList()
     },
     handleSizeChange: function(val) {
       this.count = val
+      this.currentPage = 1
       this.getChannelList()
     },
     getChannelList: function() {
@@ -294,7 +295,7 @@ export default {
     search: function() {
       this.currentPage = 1
       this.total = 0
-      this.initData()
+      this.getChannelList()
     },
     refresh: function() {
       this.initData()

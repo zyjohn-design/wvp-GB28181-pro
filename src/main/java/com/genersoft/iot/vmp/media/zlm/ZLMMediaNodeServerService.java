@@ -69,6 +69,16 @@ public class ZLMMediaNodeServerService implements IMediaNodeServerService {
 //    }
 
     @Override
+    public boolean startRecord(MediaServer mediaServer, String app, String stream) {
+        return zlmresTfulUtils.setRecord(mediaServer, app, stream, true);
+    }
+
+    @Override
+    public boolean stopRecord(MediaServer mediaServer, String app, String stream) {
+        return zlmresTfulUtils.setRecord(mediaServer, app, stream, false);
+    }
+
+    @Override
     public void closeStreams(MediaServer mediaServer, String app, String stream) {
         zlmresTfulUtils.closeStreams(mediaServer, app, stream);
     }

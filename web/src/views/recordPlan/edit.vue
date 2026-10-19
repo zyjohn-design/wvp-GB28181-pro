@@ -13,16 +13,16 @@
       <div id="shared" class="edit-record-plan">
         <el-form style="padding: 0 20px" size="small">
           <el-form-item>
-            <el-input v-model="planName" type="text" placeholder="请输入计划名称" />
+            <el-input v-model="planName" type="text" maxlength="255" show-word-limit placeholder="请输入计划名称（必填）" />
           </el-form-item>
           <el-form-item>
             <div class="content">
-              <weekTimePicker ref="weekTimePicker" :plan-array="planArray" />
+              <weekTimePicker ref="weekTimePicker" :plan-array.sync="planArray" />
             </div>
           </el-form-item>
           <el-form-item>
             <div style="float: right; margin-top: 20px">
-              <el-button type="primary" @click="onSubmit">保存</el-button>
+              <el-button type="primary" :loading="loading" @click="onSubmit">保存</el-button>
               <el-button @click="close">取消</el-button>
             </div>
           </el-form-item>
@@ -83,6 +83,8 @@ export default {
       this.endCallback = endCallback
       this.showDialog = true
       this.edit = false
+      this.id = null
+      this.planName = ''
       this.planArray = [
         {
           data: []
@@ -123,52 +125,38 @@ export default {
       }
     },
     onSubmit: function() {
-      const planList = this.handPlanArray()
-      console.log(planList)
-      if (!this.edit) {
-        this.$store.dispatch('recordPlan/addPlan', {
-          name: this.planName,
-          planList: planList
-        })
-          .then(data => {
-            this.$message({
-              showClose: true,
-              message: '添加成功',
-              type: 'success'
-            })
-            this.endCallback()
-          })
-          .catch((error) => {
-            this.$message({
-              showClose: true,
-              message: error,
-              type: 'error'
-            })
-          })
-          .finally(() => {
-            this.showDialog = false
-          })
-      } else {
-        this.$store.dispatch('recordPlan/update', {
-          id: this.id,
-          name: this.planName,
-          planList: planList
-        })
-          .then(data => {
-            this.$message({
-              showClose: true,
-              message: '更新成功',
-              type: 'success'
-            })
-            this.endCallback()
-          })
-          .catch((error) => {
-            console.error(error)
-          })
-          .finally(() => {
-            this.showDialog = false
-          })
+      if (this.loading) return
+      const name = (this.planName || '').trim()
+      if (!name) {
+        this.$message.error('请输入计划名称')
+        return
       }
+      const planList = this.handPlanArray()
+      if (!planList.length) {
+        this.$message.error('请至少选择一个录制时间段')
+        return
+      }
+      if (planList.some(item => item.start < 0 || item.stop > 1440 || item.start >= item.stop)) {
+        this.$message.error('录制时间段无效，请重新选择')
+        return
+      }
+      this.loading = true
+      this.$store.dispatch(this.edit ? 'recordPlan/update' : 'recordPlan/addPlan', {
+        id: this.id,
+        name,
+        planList
+      })
+        .then(() => {
+          this.$message.success(this.edit ? '更新成功' : '添加成功')
+          if (typeof this.endCallback === 'function') this.endCallback()
+          this.close()
+        })
+        .catch(error => {
+          this.$message.error(error.message || error)
+        })
+        .finally(() => {
+          this.loading = false
+        })
     },
     handPlanData: function(planList) {
       // 数据库数据转为组件数据格式
@@ -205,9 +193,6 @@ export default {
       this.planName = null
       this.byteTime = ''
       this.endCallback = ''
-      if (this.endCallback) {
-        this.endCallback()
-      }
     }
   }
 }

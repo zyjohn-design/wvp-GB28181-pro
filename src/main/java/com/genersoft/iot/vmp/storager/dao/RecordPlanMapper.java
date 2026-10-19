@@ -35,13 +35,13 @@ public interface RecordPlanMapper {
             "(#{item.start}, #{item.stop}, #{item.weekDay},#{planId})" +
             "</foreach> " +
             " </script>")
-    void batchAddItem(@Param("planId") int planId, List<RecordPlanItem> planItemList);
+    void batchAddItem(@Param("planId") int planId, @Param("planItemList") List<RecordPlanItem> planItemList);
 
     @Select("select * from wvp_record_plan where  id = #{planId}")
     RecordPlan get(@Param("planId") Integer planId);
 
     @Select(" <script>" +
-            " SELECT wrp.*, (select count(1) from wvp_device_channel where record_plan_id = wrp.id) AS channelCount\n" +
+            " SELECT wrp.*, (select count(1) from wvp_device_channel where record_plan_id = wrp.id and channel_type = 0) AS channelCount\n" +
             " FROM wvp_record_plan wrp where  1=1" +
             " <if test='query != null'> AND (name LIKE concat('%',#{query},'%') escape '/' )</if> " +
             " </script>")
@@ -61,7 +61,7 @@ public interface RecordPlanMapper {
 
     @Select(" <script>" +
             " select wdc.id from wvp_device_channel wdc left join wvp_record_plan_item wrpi on wrpi.plan_id = wdc.record_plan_id " +
-            " where  wrpi.week_day = #{week} and wrpi.start &lt;= #{index} and stop &gt;= #{index} group by wdc.id" +
+            " where wdc.channel_type = 0 and wrpi.week_day = #{week} and wrpi.start &lt;= #{index} and wrpi.stop &gt; #{index} group by wdc.id" +
             " </script>")
     List<Integer> queryRecordIng(@Param("week") int week, @Param("index") int index);
 }

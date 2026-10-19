@@ -162,14 +162,20 @@ export default {
     }
   },
   created() {
-    document.addEventListener('click', () => {
-      this.selectedTrack.trackIndex = null
-      this.selectedTrack.index = null
-    })
+    document.addEventListener('click', this.clearSelection)
     document.addEventListener('mousemove', this.dayPlanMousemove)
     document.addEventListener('mouseup', this.dayPlanMouseup)
   },
+  beforeDestroy() {
+    document.removeEventListener('click', this.clearSelection)
+    document.removeEventListener('mousemove', this.dayPlanMousemove)
+    document.removeEventListener('mouseup', this.dayPlanMouseup)
+  },
   methods: {
+    clearSelection() {
+      this.selectedTrack.trackIndex = null
+      this.selectedTrack.index = null
+    },
     rulerClass(index) {
       if (index === 0 || index % 4 === 0) {
         return 'hour ruler-section'
@@ -305,6 +311,7 @@ export default {
     trackHandler: function(index, start, end) {
       // 检查时间段是否重合 重合则合并
       this.weekData[index].data = this.checkTrack(this.weekData[index].data)
+      this.updateValue()
       this.selectedTrack.trackIndex = null
       setTimeout(() => {
         this.selectedTrack.index = index
@@ -318,6 +325,7 @@ export default {
       }, 100)
     },
     removeSelectedTrack: function() {
+      if (this.selectedTrack.index === null || this.selectedTrack.trackIndex === null) return
       this.weekData[this.selectedTrack.index].data.splice(this.selectedTrack.trackIndex, 1)
       this.updateValue()
     },
@@ -390,6 +398,7 @@ export default {
         }
       }
 
+      this.updateValue()
       this.closeCopyBox(index)
     },
     closeCopyBox: function(index) {

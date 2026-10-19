@@ -498,14 +498,14 @@ public interface CommonGBChannelMapper {
     @Update(value = {" <script>" +
             " UPDATE wvp_device_channel " +
             " SET record_plan_id = #{planId}" +
-            " WHERE id in "+
+            " WHERE channel_type = 0 AND id in "+
             " <foreach collection='channelIds'  item='item'  open='(' separator=',' close=')' > #{item}</foreach>" +
             " </script>"})
-    void addRecordPlan(List<Integer> channelIds, @Param("planId") Integer planId);
+    void addRecordPlan(@Param("channelIds") List<Integer> channelIds, @Param("planId") Integer planId);
 
     @Update(value = {" <script>" +
             " UPDATE wvp_device_channel " +
-            " SET record_plan_id = #{planId}" +
+            " SET record_plan_id = #{planId} WHERE channel_type = 0" +
             " </script>"})
     void addRecordPlanForAll(@Param("planId") Integer planId);
 

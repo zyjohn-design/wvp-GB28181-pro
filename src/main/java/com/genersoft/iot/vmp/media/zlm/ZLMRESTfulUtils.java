@@ -62,6 +62,19 @@ public class ZLMRESTfulUtils {
         return httpClientBuilder.build();
     }
 
+    /** 使用动态MP4录像接口，兼容已在播放的流。 */
+    public boolean setRecord(MediaServer mediaServer, String app, String stream, boolean recording) {
+        Map<String, Object> param = new HashMap<>();
+        param.put("vhost", "__defaultVhost__");
+        param.put("app", app);
+        param.put("stream", stream);
+        param.put("type", 1);
+        String response = sendPost(mediaServer, recording ? "startRecord" : "stopRecord", param, null);
+        if (response == null) return false;
+        JSONObject result = JSON.parseObject(response);
+        return result.getIntValue("code", -1) == 0 && Boolean.TRUE.equals(result.getBoolean("result"));
+    }
+
     public String sendPost(MediaServer mediaServer, String api, Map<String, Object> param, RequestCallback callback) {
         return sendPost(mediaServer, api, param, callback, null);
     }
