@@ -2,7 +2,8 @@
 
 版本：`__RELEASE_ID__`  
 目标架构：Linux __TARGET_ARCH__  
-基线镜像：`__BACKEND_CURRENT__`、`__WEB_CURRENT__`
+基础镜像：自动读取现场 Compose 中 `polaris-wvp`、`polaris-wvp-web` 的镜像引用，
+兼容 `fb45787-amd64`、`v1.0.0-amd64` 等标签；本地镜像必须为 Linux __TARGET_ARCH__。
 
 本包只替换 WVP 后端 JAR 和前端静态资源，只重建 `polaris-wvp`、
 `polaris-wvp-web` 两个容器。不会覆盖现场 `.env`，不会修改 MySQL、Redis、
@@ -10,6 +11,9 @@ ZLMediaKit、H5适配器、录像或其他运行数据。
 
 ## 更新内容
 
+- 兼容下级平台返回的 `PresetID_5` 等预置位编号，查询统一返回数字字符串，
+  前端及调用/删除接口统一转换为对应数字；保持预置位名称不变，拒绝其他格式与超范围编号。
+- 修复联合更新包写死基础镜像标签的问题，按现场服务镜像升级；保存现场镜像引用供回滚使用。
 - API Key列表增加明确的复制按钮；重置成功后立即展示新ApiKey并支持一键复制。
 - “国标设备”页面显示下级设备的待配置/认证失败状态。
 - 显示REGISTER设备编号、来源地址、认证用户名、失败原因和处理指引。
@@ -43,7 +47,9 @@ chmod +x upgrade.sh rollback.sh verify.sh
 `compose.yaml`、`compose.sh` 和现场真实的 `.env`。
 
 升级脚本会先为当前两个正式镜像建立独立回滚标签，再基于现场镜像离线构建
-差分镜像，最后只重建后端和Web容器。构建过程不访问远程镜像仓库。
+差分镜像，最后只重建后端和Web容器。升级记录保存在部署目录
+`.wvp-updates/__RELEASE_ID__-__TARGET_ARCH__/`。请保留此目录及回滚镜像。
+构建不主动拉取基础镜像，构建步骤禁用网络。
 
 ## 回滚
 
@@ -53,6 +59,8 @@ chmod +x upgrade.sh rollback.sh verify.sh
 
 ## 注意
 
-- 本包要求现场已有上述基线镜像和可用的 Docker 构建功能。
+- 本包要求现场保留 Compose 中引用的前后端镜像，并具有可用的 Docker 构建功能。
+- 现场应用布局必须为后端 `/opt/wvp/wvp.jar`、前端 `/opt/dist/`；本项目离线部署包使用该布局。
+- 镜像使用 `@sha256:` digest 引用时会停止升级，因为此类引用无法通过重打标签替换。
 - 页面中的注册密码使用密码输入框，不会写入注册状态或日志。
 - 浏览器若仍显示旧页面，请强制刷新或清理站点缓存。

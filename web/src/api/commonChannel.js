@@ -1,3 +1,4 @@
+import { parsePresetId } from '@/utils/presetId'
 import request from '@/utils/request'
 
 // 通用通道API
@@ -446,35 +447,41 @@ export function stopCruise({ channelId, tourId }) {
 }
 
 export function addPreset({ channelId, presetId, presetName }) {
+  const id = parsePresetId(presetId)
+  if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
     url: '/api/common/channel/front-end/preset/add',
     params: {
       channelId: channelId,
-      presetId: presetId,
+      presetId: id,
       presetName: presetName
     }
   })
 }
 
 export function callPreset({ channelId, presetId }) {
+  const id = parsePresetId(presetId)
+  if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
     url: '/api/common/channel/front-end/preset/call',
     params: {
       channelId: channelId,
-      presetId: presetId
+      presetId: id
     }
   })
 }
 
 export function deletePreset({ channelId, presetId }) {
+  const id = parsePresetId(presetId)
+  if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
     url: '/api/common/channel/front-end/preset/delete',
     params: {
       channelId: channelId,
-      presetId: presetId
+      presetId: id
     }
   })
 }

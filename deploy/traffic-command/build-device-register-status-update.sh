@@ -115,6 +115,7 @@ render_template "$TEMPLATE_DIR/rollback.sh.in" "$WORK_DIR/$PACKAGE_NAME/rollback
 render_template "$TEMPLATE_DIR/README.md.in" "$WORK_DIR/$PACKAGE_NAME/README.md"
 render_template "$TEMPLATE_DIR/RELEASE_INFO.txt.in" "$WORK_DIR/$PACKAGE_NAME/RELEASE_INFO.txt"
 cp "$TEMPLATE_DIR/verify.sh" "$WORK_DIR/$PACKAGE_NAME/verify.sh"
+cp "$TEMPLATE_DIR/update-common.sh" "$WORK_DIR/$PACKAGE_NAME/update-common.sh"
 chmod +x "$WORK_DIR/$PACKAGE_NAME/upgrade.sh" "$WORK_DIR/$PACKAGE_NAME/rollback.sh" "$WORK_DIR/$PACKAGE_NAME/verify.sh"
 
 hash_file() {

@@ -1,3 +1,4 @@
+import { normalizePresetList } from '@/utils/presetId'
 import {
   addPointForCruise, addPreset, auxiliary, callPreset, deletePointForCruise, deletePreset, focus, iris, ptz,
   queryPreset, setCruiseSpeed, setCruiseTime,
@@ -134,7 +135,7 @@ const actions = {
     return new Promise((resolve, reject) => {
       queryPreset(params).then(response => {
         const { data } = response
-        resolve(data)
+        resolve(normalizePresetList(data))
       }).catch(error => {
         reject(error)
       })

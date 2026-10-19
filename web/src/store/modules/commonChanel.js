@@ -1,3 +1,4 @@
+import { normalizePresetList } from '@/utils/presetId'
 import {
   update,
   add,
@@ -459,7 +460,7 @@ const actions = {
     return new Promise((resolve, reject) => {
       queryPreset(params).then(response => {
         const { data } = response
-        resolve(data)
+        resolve(normalizePresetList(data))
       }).catch(error => {
         reject(error)
       })
