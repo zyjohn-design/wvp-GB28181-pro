@@ -65,8 +65,9 @@ def main():
     tables = examples = links = 0
     anchors = {}
     for path in files:
-        headings = re.findall(r'^#{1,6}\s+(.+)$', path.read_text(), re.M)
-        anchors[path.resolve()] = {slug(h) for h in headings}
+        text = path.read_text()
+        headings = re.findall(r'^#{1,6}\s+(.+)$', text, re.M)
+        anchors[path.resolve()] = {slug(h) for h in headings} | set(re.findall(r'<a id="([^"]+)"></a>', text))
     for path in files:
         content = path.read_text()
         fenced = False

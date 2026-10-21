@@ -1,6 +1,6 @@
 # POST /api/common/channel/civilCode/unusual/clear
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/ChannelController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/ChannelController.md#route-post-401f0d1a5b1c) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

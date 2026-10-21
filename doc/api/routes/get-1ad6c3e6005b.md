@@ -1,6 +1,6 @@
 # GET /api/media/stream_info_by_app_and_stream
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/MediaController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/MediaController.md#route-get-1ad6c3e6005b) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

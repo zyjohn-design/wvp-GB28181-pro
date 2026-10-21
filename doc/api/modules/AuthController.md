@@ -4,4 +4,4 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/auth/login](../routes/get-09420b468b4b.md) | devices |
+| <a id="route-get-09420b468b4b"></a>`GET` | [/auth/login](../routes/get-09420b468b4b.md) | devices |

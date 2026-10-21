@@ -1,6 +1,6 @@
 # DELETE /api/userApiKey/delete
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/UserApiKeyController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/UserApiKeyController.md#route-delete-e1e19f3f7735) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

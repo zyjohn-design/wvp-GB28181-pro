@@ -4,9 +4,9 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/device/config/set/basicParam](../routes/get-b83c03703fc8.md) | 设置基本配置 |
-| `GET` | [/api/device/config/set/videoParamOpt](../routes/get-e5a769926b47.md) | 设置视频参数 |
-| `GET` | [/api/device/config/query/basicParam](../routes/get-15bdc8907fb2.md) | 查询基本参数配置 |
-| `GET` | [/api/device/config/query/videoParamOpt](../routes/get-31b6f55ec956.md) | 查询视频参数范围 |
-| `GET` | [/api/device/config/query/svacEncodeConfig](../routes/get-435e621ddb15.md) | 查询SVAC编码配置 |
-| `GET` | [/api/device/config/query/svacDecodeConfig](../routes/get-da6c77f4124d.md) | 查询SVAC解码配置 |
+| <a id="route-get-b83c03703fc8"></a>`GET` | [/api/device/config/set/basicParam](../routes/get-b83c03703fc8.md) | 设置基本配置 |
+| <a id="route-get-e5a769926b47"></a>`GET` | [/api/device/config/set/videoParamOpt](../routes/get-e5a769926b47.md) | 设置视频参数 |
+| <a id="route-get-15bdc8907fb2"></a>`GET` | [/api/device/config/query/basicParam](../routes/get-15bdc8907fb2.md) | 查询基本参数配置 |
+| <a id="route-get-31b6f55ec956"></a>`GET` | [/api/device/config/query/videoParamOpt](../routes/get-31b6f55ec956.md) | 查询视频参数范围 |
+| <a id="route-get-435e621ddb15"></a>`GET` | [/api/device/config/query/svacEncodeConfig](../routes/get-435e621ddb15.md) | 查询SVAC编码配置 |
+| <a id="route-get-da6c77f4124d"></a>`GET` | [/api/device/config/query/svacDecodeConfig](../routes/get-da6c77f4124d.md) | 查询SVAC解码配置 |

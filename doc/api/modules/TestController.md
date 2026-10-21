@@ -4,5 +4,5 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/test/hook/list](../routes/get-738c701bdec6.md) | all |
-| `GET` | [/api/test/redis](../routes/get-5f8e451f502d.md) | redis |
+| <a id="route-get-738c701bdec6"></a>`GET` | [/api/test/hook/list](../routes/get-738c701bdec6.md) | all |
+| <a id="route-get-5f8e451f502d"></a>`GET` | [/api/test/redis](../routes/get-5f8e451f502d.md) | redis |

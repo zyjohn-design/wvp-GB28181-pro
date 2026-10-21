@@ -1,6 +1,6 @@
 # GET /api/device/control/home_position
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/DeviceControl.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/DeviceControl.md#route-get-0f957fd125ab) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

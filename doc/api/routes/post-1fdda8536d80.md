@@ -1,6 +1,6 @@
 # POST /api/jt1078/terminal/channel/add
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/JT1078TerminalController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/JT1078TerminalController.md#route-post-1fdda8536d80) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

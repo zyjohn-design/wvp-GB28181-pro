@@ -1,6 +1,6 @@
 # GET /api/alarm/snap/{id}
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/AlarmController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/AlarmController.md#route-get-bc5310cb44ef) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

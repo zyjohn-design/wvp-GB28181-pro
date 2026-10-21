@@ -1,6 +1,6 @@
 # GET /api/playback/pause/{streamId}
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/PlaybackController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/PlaybackController.md#route-get-a1f7ff8b9dea) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

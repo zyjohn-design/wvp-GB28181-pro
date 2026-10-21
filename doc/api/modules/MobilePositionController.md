@@ -4,7 +4,7 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/position/history/{deviceId}](../routes/get-591e86743c71.md) | 查询历史轨迹 |
-| `GET` | [/api/position/latest](../routes/get-01447c39a33e.md) | 查询通道最新位置 |
-| `GET` | [/api/position/realtime/{deviceId}](../routes/get-403ccb75f57b.md) | 获取移动位置信息 |
-| `GET` | [/api/position/subscribe/{deviceId}](../routes/get-4313d8e507c5.md) | 订阅位置信息 |
+| <a id="route-get-591e86743c71"></a>`GET` | [/api/position/history/{deviceId}](../routes/get-591e86743c71.md) | 查询历史轨迹 |
+| <a id="route-get-01447c39a33e"></a>`GET` | [/api/position/latest](../routes/get-01447c39a33e.md) | 查询通道最新位置 |
+| <a id="route-get-403ccb75f57b"></a>`GET` | [/api/position/realtime/{deviceId}](../routes/get-403ccb75f57b.md) | 获取移动位置信息 |
+| <a id="route-get-4313d8e507c5"></a>`GET` | [/api/position/subscribe/{deviceId}](../routes/get-4313d8e507c5.md) | 订阅位置信息 |

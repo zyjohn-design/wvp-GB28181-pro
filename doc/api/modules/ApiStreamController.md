@@ -4,6 +4,6 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/v1/stream/start](../routes/get-f0df58b8d71d.md) | start |
-| `GET` | [/api/v1/stream/stop](../routes/get-32d7d0236192.md) | stop |
-| `GET` | [/api/v1/stream/touch](../routes/get-caa839ebf903.md) | touch |
+| <a id="route-get-f0df58b8d71d"></a>`GET` | [/api/v1/stream/start](../routes/get-f0df58b8d71d.md) | start |
+| <a id="route-get-32d7d0236192"></a>`GET` | [/api/v1/stream/stop](../routes/get-32d7d0236192.md) | stop |
+| <a id="route-get-caa839ebf903"></a>`GET` | [/api/v1/stream/touch](../routes/get-caa839ebf903.md) | touch |

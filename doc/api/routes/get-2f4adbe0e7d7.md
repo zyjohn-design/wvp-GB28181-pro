@@ -1,6 +1,6 @@
 # GET /api/v1/control/preset
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/ApiControlController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/ApiControlController.md#route-get-2f4adbe0e7d7) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

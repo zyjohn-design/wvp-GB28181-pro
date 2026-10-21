@@ -4,7 +4,7 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/rtp/receive/open](../routes/get-fd96c5f073e3.md) | 开启收流和获取发流信息 |
-| `GET` | [/api/rtp/receive/close](../routes/get-5ef904251736.md) | 关闭收流 |
-| `GET` | [/api/rtp/send/start](../routes/get-82f106879b49.md) | 发送流 |
-| `GET` | [/api/rtp/send/stop](../routes/get-a544ff951cee.md) | 关闭发送流 |
+| <a id="route-get-fd96c5f073e3"></a>`GET` | [/api/rtp/receive/open](../routes/get-fd96c5f073e3.md) | 开启收流和获取发流信息 |
+| <a id="route-get-5ef904251736"></a>`GET` | [/api/rtp/receive/close](../routes/get-5ef904251736.md) | 关闭收流 |
+| <a id="route-get-82f106879b49"></a>`GET` | [/api/rtp/send/start](../routes/get-82f106879b49.md) | 发送流 |
+| <a id="route-get-a544ff951cee"></a>`GET` | [/api/rtp/send/stop](../routes/get-a544ff951cee.md) | 关闭发送流 |

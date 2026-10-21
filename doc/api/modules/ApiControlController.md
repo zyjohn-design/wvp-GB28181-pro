@@ -4,5 +4,5 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/v1/control/ptz](../routes/get-8746556b9183.md) | ptz |
-| `GET` | [/api/v1/control/preset](../routes/get-2f4adbe0e7d7.md) | preset |
+| <a id="route-get-8746556b9183"></a>`GET` | [/api/v1/control/ptz](../routes/get-8746556b9183.md) | ptz |
+| <a id="route-get-2f4adbe0e7d7"></a>`GET` | [/api/v1/control/preset](../routes/get-2f4adbe0e7d7.md) | preset |

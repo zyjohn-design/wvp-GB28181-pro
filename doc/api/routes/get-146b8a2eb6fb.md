@@ -1,6 +1,6 @@
 # GET /api/jt1078/media/upload/one/upload
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/JT1078Controller.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/JT1078Controller.md#route-get-146b8a2eb6fb) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

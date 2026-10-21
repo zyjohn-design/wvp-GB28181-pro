@@ -1,6 +1,6 @@
 # POST /api/common/channel/parent/unusual/clear
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/ChannelController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/ChannelController.md#route-post-a799a0d7e6a7) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

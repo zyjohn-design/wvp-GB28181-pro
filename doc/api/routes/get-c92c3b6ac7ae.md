@@ -1,6 +1,6 @@
 # GET /api/push/forceClose
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/StreamPushController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/StreamPushController.md#route-get-c92c3b6ac7ae) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

@@ -4,6 +4,6 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/v1/device/list](../routes/get-001b661b1bf7.md) | list |
-| `GET` | [/api/v1/device/channellist](../routes/get-89263a05fb15.md) | channellist |
-| `GET` | [/api/v1/device/fetchpreset](../routes/get-a8bf72630732.md) | list |
+| <a id="route-get-001b661b1bf7"></a>`GET` | [/api/v1/device/list](../routes/get-001b661b1bf7.md) | list |
+| <a id="route-get-89263a05fb15"></a>`GET` | [/api/v1/device/channellist](../routes/get-89263a05fb15.md) | channellist |
+| <a id="route-get-a8bf72630732"></a>`GET` | [/api/v1/device/fetchpreset](../routes/get-a8bf72630732.md) | list |

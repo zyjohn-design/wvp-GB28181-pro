@@ -1,6 +1,6 @@
 # POST /index/hook/on_play
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/ZLMHttpHookListener.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/ZLMHttpHookListener.md#route-post-d7b5c88b24bf) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

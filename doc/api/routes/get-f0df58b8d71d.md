@@ -1,6 +1,6 @@
 # GET /api/v1/stream/start
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/ApiStreamController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/ApiStreamController.md#route-get-f0df58b8d71d) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

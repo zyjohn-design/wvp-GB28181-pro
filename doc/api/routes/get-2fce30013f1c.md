@@ -1,6 +1,6 @@
 # GET /api/play/stop/{deviceId}/{channelId}
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/PlayController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/PlayController.md#route-get-2fce30013f1c) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

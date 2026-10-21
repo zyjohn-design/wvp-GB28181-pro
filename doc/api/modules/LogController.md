@@ -4,5 +4,5 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/log/list](../routes/get-fe8b1ca6d396.md) | 分页查询日志文件 |
-| `GET` | [/api/log/file/{fileName}](../routes/get-29b9ebe02118.md) | downloadFile |
+| <a id="route-get-fe8b1ca6d396"></a>`GET` | [/api/log/list](../routes/get-fe8b1ca6d396.md) | 分页查询日志文件 |
+| <a id="route-get-29b9ebe02118"></a>`GET` | [/api/log/file/{fileName}](../routes/get-29b9ebe02118.md) | downloadFile |

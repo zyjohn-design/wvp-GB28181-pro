@@ -517,6 +517,36 @@ def stable_name(prefix: str, identity: str) -> str:
     return prefix + "-" + hashlib.sha256(identity.encode()).hexdigest()[:12] + ".md"
 
 
+def link_integration_guide(routes: list[dict]) -> str:
+    """Link exact API references in prose; leave executable fenced examples intact."""
+    guide = (OUT / "接入指南.md").read_text(encoding="utf-8")
+    # Restore generated links to their source notation before refreshing targets.
+    guide = re.sub(r"\[([^\]\n]+)\]\(routes/[^)]+\)（\[模块条目\]\(modules/[^)]+\)）",
+                   lambda match: "`" + match.group(1) + "`", guide)
+    by_path: dict[str, list[dict]] = defaultdict(list)
+    for route in routes:
+        by_path[route["path"]].append(route)
+
+    def link(match: re.Match) -> str:
+        label = match.group(1)
+        reference = re.fullmatch(r"(?:(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ANY) )?(/api/[^\s`]+)", label)
+        if not reference:
+            return match.group(0)
+        method, path = reference.groups()
+        candidates = by_path.get(path.split("?", 1)[0], [])
+        if method:
+            candidates = [route for route in candidates if route["method"] == method]
+        if len(candidates) != 1:
+            return match.group(0)
+        route = candidates[0]
+        return f"[{label}]({route['document']})（[模块条目]({route['moduleDocument']})）"
+
+    chunks = re.split(r"(```[^\n]*\n.*?\n```)", guide, flags=re.DOTALL)
+    for index in range(0, len(chunks), 2):
+        chunks[index] = re.sub(r"(?<!\[)`([^`\n]+)`", link, chunks[index])
+    return "".join(chunks)
+
+
 def generate_split_docs(groups, models, registry) -> None:
     outputs: dict[Path, str] = {}
 
@@ -558,10 +588,12 @@ def generate_split_docs(groups, models, registry) -> None:
         for mappings, summary, return_type, parameters in endpoints:
             for verb, route in mappings:
                 filename = "routes/" + stable_name(verb.lower(), verb + " " + route)
-                module_lines.append(f"| `{verb}` | [{escape(route)}](../{filename}) | {escape(summary)} |")
+                anchor = "route-" + Path(filename).stem
+                module_document = module_filename + "#" + anchor
+                module_lines.append(f'| <a id="{anchor}"></a>`{verb}` | [{escape(route)}](../{filename}) | {escape(summary)} |')
                 lines = render_route(len(routes) + 1, title, cls, path, verb, route, summary, return_type, parameters, registry)
                 lines[0] = f"# {verb} {route}"
-                lines[1:1] = ["", f"[文档入口](../../第三方对接接口手册.md) · [所属模块](../{module_filename}) · [AI 对接指南](../AI对接指南.md)"]
+                lines[1:1] = ["", f"[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../{module_document}) · [AI 对接指南](../AI对接指南.md)"]
                 lines = [line.replace("[第8.2节](#82-预置位)", "[接入指南第8.2节](../接入指南.md#82-预置位)") for line in lines]
                 types = set(re.findall(r"[A-Za-z_][A-Za-z_0-9]*", return_type + " " + " ".join(p[1] for p in parameters)))
                 if preset_route(route) and "/query" in route:
@@ -578,7 +610,7 @@ def generate_split_docs(groups, models, registry) -> None:
                 save(filename, lines)
                 effective_parameters = preset_parameters(route, parameters)
                 routes.append({"method": verb, "path": route, "summary": summary, "module": cls,
-                               "document": filename, "source": str(path.relative_to(ROOT)),
+                               "document": filename, "moduleDocument": module_document, "source": str(path.relative_to(ROOT)),
                                "authentication": auth_text(route, verb), "contentType": content_type(verb, parameters),
                                "returnJavaType": return_type,
                                "parameters": [{"name": n, "javaType": t, "location": loc,
@@ -589,6 +621,7 @@ def generate_split_docs(groups, models, registry) -> None:
         save(module_filename, module_lines)
         module_rows.append(f"| [{escape(title)}]({module_filename}) | {module_count} | `{cls}` |")
 
+    outputs[OUT / "接入指南.md"] = link_integration_guide(routes)
     save("接口索引.md", ["# 完整接口索引", "", "[文档入口](../第三方对接接口手册.md) · [AI 对接指南](AI对接指南.md)", "",
                           "仅索引，不加载所有字段表。先按方法和完整路径定位，再打开一条接口详情。含内部回调、管理及可选模块；是否适合第三方调用看详情。", "",
                           "| 方法 | 路径 | 功能 | 模块 |", "|---|---|---|---|"] +

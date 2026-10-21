@@ -1,6 +1,6 @@
 # POST /index/hook/on_send_rtp_stopped
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/ZLMHttpHookListener.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/ZLMHttpHookListener.md#route-post-bd4c0a5b99a6) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

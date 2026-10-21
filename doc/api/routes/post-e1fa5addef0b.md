@@ -1,6 +1,6 @@
 # POST /index/hook/abl/on_publish
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/ABLHttpHookListener.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/ABLHttpHookListener.md#route-post-e1fa5addef0b) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

@@ -1,6 +1,6 @@
 # GET /api/server/media_server/list
 
-[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/ServerController.md) · [AI 对接指南](../AI对接指南.md)
+[文档入口](../../第三方对接接口手册.md) · [所属模块条目](../modules/ServerController.md#route-get-943f5e7b4fb8) · [AI 对接指南](../AI对接指南.md)
 
 #### 基本信息
 

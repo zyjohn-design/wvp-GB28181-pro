@@ -4,6 +4,6 @@
 
 | 方法 | 路径 | 功能 |
 |---|---|---|
-| `GET` | [/api/v1/getserverinfo](../routes/get-4f8f9a7e008e.md) | getserverinfo |
-| `GET` | [/api/v1/userinfo](../routes/get-41e7604eb6b7.md) | userinfo |
-| `GET` | [/api/v1/login](../routes/get-1c40cc9fd0ed.md) | login |
+| <a id="route-get-4f8f9a7e008e"></a>`GET` | [/api/v1/getserverinfo](../routes/get-4f8f9a7e008e.md) | getserverinfo |
+| <a id="route-get-41e7604eb6b7"></a>`GET` | [/api/v1/userinfo](../routes/get-41e7604eb6b7.md) | userinfo |
+| <a id="route-get-1c40cc9fd0ed"></a>`GET` | [/api/v1/login](../routes/get-1c40cc9fd0ed.md) | login |
