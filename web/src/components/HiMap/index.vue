@@ -1,33 +1,24 @@
 <template>
   <div class="hi-map" :style="myStyle">
     <iframe
+      :key="loadToken"
       :id="mapid"
       ref="frame"
       :src="iframeSrc"
       :style="ifmStyle"
       frameborder="0"
       @load="onFrameLoad"
+      @error="failLoading('地图页面加载失败')"
     />
+    <div v-if="!ready" class="map-status" role="status">
+      <span>{{ errorMessage || (retryCount ? '正在重新加载地图…' : '正在加载地图…') }}</span>
+      <button v-if="errorMessage" type="button" @click="reload()">重新加载地图</button>
+    </div>
   </div>
 </template>
 
 <script>
-/**
- * HiMap 电子地图组件（Vue 2 版）
- *
- * 由 traffic_brain/client-web 的 React 版 HiMap 迁移而来，核心行为保持一致：
- * 通过 iframe 加载 public/map/ 下的静态地图入口页，轮询 iframe 内的 window._MapApp，
- * 就绪后以 ready 事件把 HiMap 实例抛给父组件（对应 React 版的 onready 回调）。
- *
- * 与 React 版的差异：
- * 1. 去掉了 traffic_brain 的 intentManager 能力注册（那是大模型意图链路专有逻辑，本项目没有该链路）。
- * 2. 轮询增加了超时保护，避免 HiMap 服务不可达时无限轮询。
- * 3. 用 iframe 的 load 事件驱动轮询，避免切换底图时读到上一个实例。
- *
- * 用法：
- *   <HiMap ref="hiMap" maptype="arcgis" :init-map-obj="true" @ready="onMapReady" />
- *   onMapReady(mapApp) { mapApp.centerAndZoom('114.26,30.58', 8) }
- */
+/** HiMap iframe：确认底图就绪后再通知父页面；失败可重建 iframe，无需清浏览器缓存。 */
 export default {
   name: 'HiMap',
   props: {
@@ -76,7 +67,7 @@ export default {
       type: Number,
       default: 20000
     },
-    // 发现 _MapApp 后，最多再等多久确认底图加载完成（毫秒），超时则先按就绪处理
+    // 底图未完成时的提示等待时间，不能代替真实的就绪信号
     loadGracePeriod: {
       type: Number,
       default: 3000
@@ -84,18 +75,19 @@ export default {
   },
   data() {
     return {
-      // HiMap 实例（iframe 内的 window._MapApp）
-      mapApp: null,
-      // 地图是否已就绪
-      ready: false
+      ready: false,
+      loadToken: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
+      retryCount: 0,
+      errorMessage: ''
     }
   },
   computed: {
-    // 静态入口页放在 public/map 下，随 Vue CLI 的 public 目录原样发布
+    // 静态入口页放在 public/map-entry 下，随前端版本发布
     iframeSrc() {
       const base = process.env.BASE_URL || '/'
       const page = this.maptype === 'arcgisDark' ? 'arcgis-dark.html' : 'arcgis.html'
-      return `${base}map/${page}`
+      // 入口随前端发布；现场挂载的 /map 只提供配置，不再遮住新版入口 HTML。
+      return `${base}map-entry/${page}?v=${encodeURIComponent(this.loadToken)}`
     }
   },
   watch: {
@@ -106,18 +98,38 @@ export default {
   },
   created() {
     // 定时器不需要响应式，这里显式初始化避免未定义判断
+    // 地图 SDK 对象不能进入 Vue 的深层响应式观察。
+    this.mapApp = null
     this.timer = null
     this.timeoutTimer = null
     // 首次发现 _MapApp 的时间戳，用于底图加载宽限期判断
     this.mapAppFoundAt = null
+    this.warningSent = false
+    this.retryTimer = null
+    this.disposed = false
+    this.active = true
   },
   mounted() {
     // 首次挂载时如果 load 事件已经错过，这里兜底启动一次轮询
     this.startPolling()
   },
-  beforeDestroy() {
+  activated() {
+    this.active = true
+    if (this.errorMessage) this.reload()
+    else if (!this.ready) this.startPolling()
+    else if (this.mapApp && this.mapApp.map && typeof this.mapApp.map.resize === 'function') this.mapApp.map.resize()
+  },
+  deactivated() {
+    this.active = false
     this.stopPolling()
-    this.mapApp = null
+    clearTimeout(this.retryTimer)
+    this.retryTimer = null
+  },
+  beforeDestroy() {
+    this.disposed = true
+    this.stopPolling()
+    clearTimeout(this.retryTimer)
+    this.clearMapApp()
   },
   methods: {
     /**
@@ -131,20 +143,16 @@ export default {
      */
     startPolling() {
       // 已就绪后不再重复启动轮询（例如 iframe 迟到的 load 事件）
-      if (this.ready) {
-        return
-      }
-      this.stopPolling()
+      if (this.ready || this.timer || this.errorMessage || this.disposed || !this.active) return
       this.mapAppFoundAt = null
+      this.warningSent = false
       this.timer = setInterval(() => {
         this.checkMapApp()
       }, this.pollInterval)
       // 超时兜底：HiMap 服务不可达时避免无限轮询
       this.timeoutTimer = setTimeout(() => {
         if (!this.ready) {
-          this.stopPolling()
-          console.error('[HiMap] 地图加载超时，请检查 HiMap 服务配置')
-          this.$emit('timeout')
+          this.failLoading('地图加载超时，请检查地图服务和网络')
         }
       }, this.readyTimeout)
       // 立即检测一次，避免等待一个轮询周期
@@ -163,32 +171,40 @@ export default {
         this.timeoutTimer = null
       }
     },
-    /**
-     * 检测 iframe 内的 _MapApp 是否可用
-     *
-     * 就绪判定相对 React 版做了加固：minemap 的 `map._loaded` 只有在底图样式
-     * 加载成功后才会被置为 true，底图样式服务异常时它会一直不成立。原实现只等
-     * `_loaded`，一旦底图服务不可用就会永远等不到 onready、组件静默卡死。
-     * 这里改为：优先等引擎的加载完成信号（`_loaded` / `loaded()` / `isStyleLoaded()`），
-     * 超过 loadGracePeriod 仍拿不到就先按就绪处理，保证父组件一定能拿到地图实例。
-     */
+    failLoading(message) {
+      if (this.disposed || this.errorMessage) return
+      this.stopPolling()
+      this.errorMessage = message
+      console.error('[HiMap]', message, this.iframeSrc)
+      this.$emit('timeout', message)
+      // 每次进入/手动刷新最多自动重试两次，不无限刷新有故障的服务。
+      if (this.retryCount < 2) {
+        this.retryTimer = setTimeout(() => this.reload(true), 1500)
+      }
+    },
     checkMapApp() {
-      if (this.ready) {
-        return
-      }
-      const frame = this.$refs.frame
-      const contentWindow = frame && frame.contentWindow
-      if (!contentWindow || !contentWindow._MapApp) {
-        return
-      }
-      const mapApp = contentWindow._MapApp
-      if (!this.mapAppFoundAt) {
-        this.mapAppFoundAt = Date.now()
-      }
-      const loaded = this.isMapLoaded(mapApp)
-      const graceExpired = Date.now() - this.mapAppFoundAt >= this.loadGracePeriod
-      if (loaded || graceExpired) {
-        this.handleReady(mapApp, contentWindow, loaded)
+      if (this.ready || this.errorMessage) return
+      try {
+        const frame = this.$refs.frame
+        const contentWindow = frame && frame.contentWindow
+        // Vue 更新 src 到 iframe 完成导航之间，可能仍读到上一个页面的实例。
+        if (!contentWindow || new URLSearchParams(contentWindow.location.search).get('v') !== this.loadToken) return
+        const state = contentWindow._MapLoadState
+        if (state && state.error) {
+          this.failLoading(state.message)
+          return
+        }
+        const mapApp = contentWindow._MapApp
+        if (!mapApp) return
+        if (this.mapAppFoundAt === null) this.mapAppFoundAt = Date.now()
+        if (this.isMapLoaded(mapApp)) {
+          this.handleReady(mapApp, contentWindow)
+        } else if (!this.warningSent && Date.now() - this.mapAppFoundAt >= this.loadGracePeriod) {
+          this.warningSent = true
+          this.$emit('loadwarning')
+        }
+      } catch (error) {
+        this.failLoading('地图初始化失败：' + error.message)
       }
     },
     /**
@@ -202,7 +218,7 @@ export default {
         return false
       }
       try {
-        if (map._loaded === true) {
+        if (map._loaded === true || map.loaded === true) {
           return true
         }
         if (typeof map.loaded === 'function' && map.loaded() === true) {
@@ -221,9 +237,8 @@ export default {
      * 地图就绪处理：停止轮询、缓存实例、抛出 ready 事件
      * @param {Object} mapApp HiMap 实例
      * @param {Window} contentWindow iframe 的 window
-     * @param {Boolean} loaded 底图是否确认加载完成
      */
-    handleReady(mapApp, contentWindow, loaded) {
+    handleReady(mapApp, contentWindow) {
       if (this.ready) {
         return
       }
@@ -237,26 +252,31 @@ export default {
         window.CONTENT_DOCUMENT = contentDocument
       }
       this.$emit('ready', mapApp, contentDocument)
-      if (!loaded) {
-        // 地图实例可用但底图尚未确认加载完成，通常是 HiMap 服务或样式服务异常
-        console.warn('[HiMap] 底图未确认加载完成，请检查 HiMap 服务与底图样式配置')
-        this.$emit('loadwarning')
-      }
     },
     /**
      * 重新加载地图（切换底图或服务异常后重试）
      */
-    reload() {
-      this.stopPolling()
-      this.mapApp = null
-      this.ready = false
-      this.mapAppFoundAt = null
-      // maptype 变化会让 iframe 重新加载，加载完成后 onFrameLoad 会重启轮询
-      if (this.$refs.frame) {
-        this.$nextTick(() => {
-          this.startPolling()
-        })
+    clearMapApp() {
+      if (this.initMapObj && window.MAP_OBJ === this.mapApp) {
+        delete window.MAP_OBJ
+        delete window.CONTENT_DOCUMENT
       }
+      this.mapApp = null
+    },
+    reload(automatic = false) {
+      if (this.disposed) return
+      this.stopPolling()
+      clearTimeout(this.retryTimer)
+      this.retryTimer = null
+      this.$emit('loading')
+      this.clearMapApp()
+      this.ready = false
+      this.errorMessage = ''
+      this.mapAppFoundAt = null
+      this.retryCount = automatic === true ? this.retryCount + 1 : 0
+      // 同一底图也创建全新 iframe，并让入口、配置和 SDK 使用新请求地址。
+      this.loadToken = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+      this.$nextTick(() => this.startPolling())
     },
     getMapApp() {
       return this.mapApp
@@ -295,5 +315,16 @@ export default {
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+.map-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(247, 249, 252, .9);
+  color: #606266;
+  button { padding: 8px 14px; cursor: pointer; }
 }
 </style>

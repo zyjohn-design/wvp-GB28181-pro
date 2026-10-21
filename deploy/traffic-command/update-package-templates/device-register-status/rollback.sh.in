@@ -14,6 +14,7 @@ prepare_deployment
 check_saved_references
 validate_image "$BACKEND_BACKUP"
 validate_image "$WEB_BACKUP"
+restore_nginx_template
 docker tag "$BACKEND_BACKUP" "$BACKEND_CURRENT"
 docker tag "$WEB_BACKUP" "$WEB_CURRENT"
 ./compose.sh up -d --no-deps --force-recreate polaris-wvp polaris-wvp-web

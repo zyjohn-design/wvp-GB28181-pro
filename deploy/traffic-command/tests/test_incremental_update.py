@@ -30,6 +30,14 @@ class IncrementalUpdateTest(unittest.TestCase):
         self.log = self.root / 'commands.jsonl'
         self.write_config()
         (self.deploy / '.env').write_text('FIELD_CONFIG=preserve\n')
+        (self.deploy / 'config/nginx').mkdir(parents=True)
+        (self.package / 'config').mkdir()
+        self.nginx = self.deploy / 'config/nginx/wvp-web.conf.template'
+        self.nginx_before = (TEMPLATES / 'nginx-before-map-cache.conf.template').read_text()
+        self.nginx_after = (TEMPLATES.parents[1] / 'config/nginx/wvp-web.conf.template').read_text()
+        self.nginx.write_text(self.nginx_before)
+        (self.package / 'config/nginx-before-map-cache.conf.template').write_text(self.nginx_before)
+        (self.package / 'config/wvp-web.conf.template').write_text(self.nginx_after)
         values = {'__TARGET_ARCH__': 'amd64', '__RELEASE_ID__': 'test-release',
                   '__BACKEND_RELEASE__': 'local/backend:release', '__WEB_RELEASE__': 'local/web:release',
                   '__BACKEND_BACKUP__': 'local/backend:backup', '__WEB_BACKUP__': 'local/web:backup'}
@@ -98,6 +106,7 @@ path.write_text(json.dumps(images))
         config = (self.deploy / 'compose.yaml').read_bytes()
         self.run_script('upgrade')
         self.run_script('upgrade')  # A retry must preserve the first backup.
+        self.assertEqual(self.nginx.read_text(), self.nginx_after)
         images = json.loads(self.images.read_text())
         self.assertEqual(images['local/backend:backup'][0], 'original-backend')
         self.assertEqual(images[self.backend][0], 'built-local/backend:release')
@@ -111,6 +120,7 @@ path.write_text(json.dumps(images))
         self.assertEqual(images[self.web][0], 'original-web')
         self.assertEqual((self.deploy / 'compose.yaml').read_bytes(), config)
         self.assertEqual((self.deploy / '.env').read_text(), 'FIELD_CONFIG=preserve\n')
+        self.assertEqual(self.nginx.read_text(), self.nginx_before)
 
     def test_wrong_architecture_stops_before_changes(self):
         images = json.loads(self.images.read_text())
@@ -142,6 +152,24 @@ path.write_text(json.dumps(images))
         self.assertEqual(images[self.backend][0], 'original-backend')
         self.assertEqual(images[self.web][0], 'original-web')
         self.assertFalse(any(c[1] == 'up' for c in self.commands()))
+        self.assertEqual(self.nginx.read_text(), self.nginx_before)
+
+    def test_custom_nginx_stops_before_changes(self):
+        self.nginx.write_text(self.nginx_before + '\n# site custom proxy\n')
+        self.run_script('upgrade', False)
+        self.assert_no_mutation()
+        self.assertTrue(self.nginx.read_text().endswith('# site custom proxy\n'))
+
+    def test_missing_nginx_stops_before_changes(self):
+        self.nginx.unlink()
+        self.run_script('upgrade', False)
+        self.assert_no_mutation()
+
+    def test_already_updated_nginx_can_upgrade_and_rollback(self):
+        self.nginx.write_text(self.nginx_after)
+        self.run_script('upgrade')
+        self.run_script('rollback')
+        self.assertEqual(self.nginx.read_text(), self.nginx_after)
 
     def test_changed_compose_prevents_rollback_to_wrong_tags(self):
         self.run_script('upgrade')

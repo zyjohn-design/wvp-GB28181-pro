@@ -69,3 +69,28 @@ check_saved_references() {
         exit 1
     fi
 }
+
+# Only replace the known project template. Never overwrite a site's custom proxy rules.
+check_nginx_template() {
+    NGINX_TARGET="$DEPLOY_DIR/config/nginx/wvp-web.conf.template"
+    [ -f "$SCRIPT_DIR/config/wvp-web.conf.template" ] || return 0
+    if [ ! -f "$NGINX_TARGET" ] || \
+       { ! cmp -s "$NGINX_TARGET" "$SCRIPT_DIR/config/nginx-before-map-cache.conf.template" && \
+         ! cmp -s "$NGINX_TARGET" "$SCRIPT_DIR/config/wvp-web.conf.template"; }; then
+        printf '%s\n' "错误：现场 Nginx 模板缺失或经过定制。请维护人员核对包内 config/wvp-web.conf.template 与 ${NGINX_TARGET}，适配升级脚本后再升级。本次未更新镜像。" >&2
+        exit 1
+    fi
+}
+
+install_nginx_template() {
+    [ -f "$SCRIPT_DIR/config/wvp-web.conf.template" ] || return 0
+    if [ ! -f "$STATE_DIR/nginx-before.conf.template" ]; then
+        cp -p "$NGINX_TARGET" "$STATE_DIR/nginx-before.conf.template"
+    fi
+    cp "$SCRIPT_DIR/config/wvp-web.conf.template" "$NGINX_TARGET"
+}
+
+restore_nginx_template() {
+    [ -f "$STATE_DIR/nginx-before.conf.template" ] || return 0
+    cp "$STATE_DIR/nginx-before.conf.template" "$DEPLOY_DIR/config/nginx/wvp-web.conf.template"
+}

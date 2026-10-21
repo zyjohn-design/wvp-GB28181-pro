@@ -3,19 +3,24 @@
     <div style="height: 100%; display: grid; grid-template-columns: 360px auto">
       <DeviceTree ref="deviceTree" @clickEvent="treeChannelClickEvent" :showPosition="true" :contextmenu="getContextmenu()"/>
       <div class="hi-map-area">
-        <!-- HiMap 电子地图：通过 iframe 加载 public/map 下的地图入口页 -->
+        <!-- HiMap 电子地图：通过 iframe 加载前端管理的地图入口页 -->
         <HiMap
           ref="hiMap"
           :maptype="maptype"
           :init-map-obj="true"
+          @loading="onMapLoading"
           @ready="onMapReady"
           @timeout="onMapTimeout"
           @loadwarning="onMapLoadWarning"
         />
 
+        <div v-if="mapReady && (channelLoading || channelLoadError || channels.length === 0)" class="channel-load-status" role="status">
+          <span>{{ channelLoading ? '正在加载摄像头点位…' : (channelLoadError || '暂无有效坐标的摄像头点位') }}</span>
+          <el-button v-if="!channelLoading" type="text" @click="loadChannels">重新加载点位</el-button>
+        </div>
         <!-- 通道信息框：定位在地图对应的经纬度上方 -->
         <transition name="el-zoom-in-center">
-          <div class="map-infobox" :style="infoBoxStyle" v-if="channel">
+          <div ref="infoBox" class="map-infobox" :style="infoBoxStyle" v-if="channel">
             <div class="infobox-content">
               <el-descriptions class="margin-top" :title="channel.gbName" :column="1" :colon="true" size="mini" :labelStyle="labelStyle" >
                 <el-descriptions-item label="编号" >{{channel.gbDeviceId}}</el-descriptions-item>
@@ -34,7 +39,7 @@
 
         <!-- 通道位置编辑框：HiMap 以 iframe 承载地图，无法直接拖拽图标，改为输入经纬度后保存 -->
         <transition name="el-zoom-in-center">
-          <div class="map-infobox" :style="editBoxStyle" v-if="dragChannel">
+          <div ref="editBox" class="map-infobox" :style="editBoxStyle" v-if="dragChannel">
             <div class="infobox-edit-content">
               <div style="width: 100%; line-height: 1.5rem; font-size: 14px">{{dragChannel.gbName}}  ({{dragChannel.gbDeviceId}})</div>
               <span style="font-size: 14px">经度:</span> <el-input v-model="dragChannel.gbLongitude" placeholder="请输入经度" style="width: 7rem; margin-right: 10px"></el-input>
@@ -47,6 +52,11 @@
       </div>
     </div>
     <div class="map-tool-box-bottom-right">
+      <div class="map-tool-btn-group">
+        <div class="map-tool-btn" title="重新加载地图" @click="$refs.hiMap.reload()">
+          <i class="el-icon-refresh"></i>
+        </div>
+      </div>
       <div class="map-tool-btn-group" v-if="mapReady">
         <el-dropdown placement="top" @command="changeMapType">
           <div class="el-dropdown-link map-tool-btn" title="底图切换">
@@ -94,9 +104,8 @@ import HiMap from '@/components/HiMap/index.vue'
 import player from '../channel/player.vue'
 import CommonChannelEditDialog from '../dialog/commonChannelEditDialog.vue'
 import { getZoomLevelOfPolygons } from '@/utils/himap-utils'
+import { createChannelMapLayer } from '@/utils/channel-map-layer'
 
-// 通道点位图层 id，HiMap 通过该 id 操作矢量图层
-const CHANNEL_LAYER_ID = 'gb-channel-layer'
 // 定位单个通道时的目标层级，实际会被引擎最大层级截断
 const LOCATE_LEVEL = 16
 
@@ -112,12 +121,12 @@ export default {
     return {
       // 底图类型，浅色为默认
       maptype: 'arcgis',
-      // HiMap 实例（iframe 内的 _MapApp）
-      mapApp: null,
       // 地图是否已就绪
       mapReady: false,
       // 有位置的通道列表
       channels: [],
+      channelLoading: false,
+      channelLoadError: '',
       // 信息框当前展示的通道
       channel: null,
       // 位置编辑中的通道
@@ -140,11 +149,27 @@ export default {
       return this.buildBoxStyle(this.editBoxPixel)
     }
   },
-  beforeDestroy() {
-    // 地图状态变化监听需要显式移除，否则 iframe 内会残留回调
-    if (this.mapApp && this.mapChangeHandler) {
-      this.mapApp.removeMapChangeListener(this.mapChangeHandler)
+  created() {
+    this.channelRequestId = 0
+    this.mapApp = null
+    this.channelLayer = null
+    this.boxFrame = null
+  },
+  activated() {
+    // 页面被 KeepAlive 缓存后再次进入，重取点位，恢复上一次失败的接口请求。
+    if (this.mapReady) {
+      this.attachMapListener()
+      this.loadChannels()
     }
+  },
+  deactivated() {
+    this.channelRequestId++
+    this.detachMapListener()
+  },
+  beforeDestroy() {
+    this.channelRequestId++
+    this.detachMapListener()
+    this.disposeChannelLayer()
     this.mapApp = null
   },
   methods: {
@@ -157,127 +182,146 @@ export default {
       }
       return {
         position: 'absolute',
-        left: pixel.x + 'px',
-        top: (pixel.y - 12) + 'px',
-        transform: 'translate(-50%, -100%)',
+        left: '0',
+        top: '0',
+        transform: `translate3d(${pixel.x}px, ${pixel.y - 12}px, 0) translate(-50%, -100%)`,
         zIndex: 10
       }
     },
     /**
      * 地图就绪：注册状态变化监听并加载通道点位
      */
+    detachMapListener() {
+      if (this.boxFrame !== null) window.cancelAnimationFrame(this.boxFrame)
+      this.boxFrame = null
+      if (this.mapApp && this.mapChangeHandler && typeof this.mapApp.removeMapChangeListener === 'function') {
+        try {
+          this.mapApp.removeMapChangeListener(this.mapChangeHandler)
+        } catch (error) {
+          console.warn('[电子地图] 移除旧地图监听失败', error)
+        }
+      }
+      this.mapChangeHandler = null
+    },
+    onMapLoading() {
+      this.channelRequestId++
+      this.detachMapListener()
+      this.disposeChannelLayer()
+      this.closeInfoBox()
+      this.dragChannel = null
+      this.mapApp = null
+      this.mapReady = false
+      this.channelLoading = false
+      this.channelLoadError = ''
+    },
     onMapReady(mapApp) {
+      this.detachMapListener()
+      this.disposeChannelLayer()
       this.mapApp = mapApp
       this.mapReady = true
-      // 地图移动/缩放后重新定位弹窗
-      this.mapChangeHandler = () => {
-        this.repositionBoxes()
-      }
-      mapApp.addMapChangeListener(this.mapChangeHandler)
+      this.attachMapListener()
       this.loadChannels()
+    },
+    attachMapListener() {
+      if (!this.mapApp || this.mapChangeHandler) return
+      this.mapChangeHandler = () => this.scheduleBoxPosition()
+      try {
+        if (typeof this.mapApp.addMapChangeListener === 'function') this.mapApp.addMapChangeListener(this.mapChangeHandler)
+      } catch (error) {
+        console.warn('[电子地图] 注册地图移动监听失败', error)
+      }
+      this.scheduleBoxPosition()
+    },
+    scheduleBoxPosition() {
+      if ((!this.infoBoxPoint && !this.editBoxPoint) || this.boxFrame !== null) return
+      this.boxFrame = window.requestAnimationFrame(() => {
+        this.boxFrame = null
+        this.repositionBoxes(false)
+      })
+    },
+    disposeChannelLayer() {
+      if (!this.channelLayer) return
+      const layer = this.channelLayer
+      this.channelLayer = null
+      try { layer.dispose() } catch (error) { console.warn('[电子地图] 移除点图层失败', error) }
     },
     /**
      * 地图加载超时，提示用户检查 HiMap 服务
      */
     onMapTimeout() {
-      this.$message({
-        showClose: true,
-        message: '电子地图加载超时，请检查 HiMap 服务是否可用',
-        type: 'warning'
-      })
+      this.mapReady = false
     },
-    /**
-     * 地图实例已就绪但底图未确认加载完成，通常是底图样式服务异常
-     */
     onMapLoadWarning() {
-      this.$message({
-        showClose: true,
-        message: '底图加载未完成，请检查 HiMap 底图样式服务',
-        type: 'warning'
-      })
+      console.warn('[电子地图] 底图仍在加载，尚未请求摄像头点位')
     },
     /**
      * 重新计算信息框与编辑框的屏幕位置
      */
-    repositionBoxes() {
-      if (!this.mapApp) {
-        return
+    repositionBoxes(updateState = true) {
+      if (!this.mapApp) return
+      for (const [point, refName, pixelName] of [
+        [this.infoBoxPoint, 'infoBox', 'infoBoxPixel'], [this.editBoxPoint, 'editBox', 'editBoxPixel']
+      ]) {
+        if (!point) continue
+        const pixel = this.mapApp.mapCoordToPixel(point[0], point[1])
+        if (updateState) {
+          this[pixelName] = pixel
+        } else {
+          // 拖动中只更新可见弹窗的合成变换，不触发 Vue 重渲染设备树和整页。
+          const element = this.$refs[refName]
+          if (element) {
+            element.style.display = pixel ? '' : 'none'
+            if (pixel) element.style.transform = this.buildBoxStyle(pixel).transform
+          }
+        }
       }
-      this.infoBoxPixel = this.infoBoxPoint
-        ? this.mapApp.mapCoordToPixel(this.infoBoxPoint[0], this.infoBoxPoint[1])
-        : null
-      this.editBoxPixel = this.editBoxPoint
-        ? this.mapApp.mapCoordToPixel(this.editBoxPoint[0], this.editBoxPoint[1])
-        : null
     },
     /**
      * 判断通道是否具备可用位置
      */
     hasPosition(channel) {
-      return !!(channel && channel.gbLongitude > 0 && channel.gbLatitude > 0)
-    },
-    /**
-     * 通道图标：在线与离线使用不同图标
-     */
-    channelIcon(channel) {
-      const base = process.env.BASE_URL || '/'
-      // 图标由 iframe 内的地图引擎加载，必须使用绝对路径
-      const icon = channel.gbStatus === 'ON' ? 'camera1.png' : 'camera1-offline.png'
-      return base + 'static/images/gis/' + icon
+      if (!channel) return false
+      const longitude = Number(channel.gbLongitude)
+      const latitude = Number(channel.gbLatitude)
+      return Number.isFinite(longitude) && Number.isFinite(latitude) &&
+        longitude > 0 && longitude <= 180 && latitude > 0 && latitude <= 90
     },
     /**
      * 加载有位置的通道并绘制到地图上
      */
     loadChannels() {
-      this.$store.dispatch('commonChanel/getAllForMap', {})
+      if (!this.mapReady || !this.mapApp) return Promise.resolve()
+      const requestId = ++this.channelRequestId
+      const mapApp = this.mapApp
+      this.channelLoading = true
+      this.channelLoadError = ''
+      return this.$store.dispatch('commonChanel/getAllForMap', {})
         .then(data => {
-          const list = data || []
-          this.channels = list.filter(channel => this.hasPosition(channel))
+          if (requestId !== this.channelRequestId || mapApp !== this.mapApp) return
+          if (!Array.isArray(data)) throw new Error('点位接口返回格式异常')
+          this.channels = Object.freeze(data.filter(channel => this.hasPosition(channel)))
           this.drawChannels()
         })
         .catch(error => {
-          this.$message({
-            showClose: true,
-            message: error,
-            type: 'error'
-          })
+          if (requestId !== this.channelRequestId || mapApp !== this.mapApp) return
+          this.channelLoadError = '摄像头点位加载失败，请重试'
+          console.error('[电子地图] 点位请求或绘制失败', error)
+        })
+        .finally(() => {
+          if (requestId === this.channelRequestId) this.channelLoading = false
         })
     },
-    /**
-     * 用 HiMap 矢量图层绘制通道点位，点击点位弹出通道信息
-     */
+    /** 图层只创建一次；相同点位无需重绘，拖动完全交给地图引擎。 */
     drawChannels() {
-      if (!this.mapApp) {
-        return
+      if (!this.mapApp) return
+      if (!this.channelLayer) {
+        const base = process.env.BASE_URL || '/'
+        this.channelLayer = createChannelMapLayer(this.mapApp, {
+          iconBase: base + 'static/images/gis/',
+          onClick: channel => this.$nextTick(() => this.showChannelInfo(channel))
+        })
       }
-      // 先移除旧图层，避免切换底图或刷新后重复叠加
-      this.mapApp.removeVectorLayer(CHANNEL_LAYER_ID)
-      if (this.channels.length === 0) {
-        return
-      }
-      const data = this.channels.map(channel => ({
-        id: channel.gbId,
-        title: channel.gbName,
-        strcoords: channel.gbLongitude + ',' + channel.gbLatitude,
-        imgurl: this.channelIcon(channel),
-        width: 28,
-        height: 32,
-        coordtype: '1',
-        channel: channel
-      }))
-      this.mapApp.addVectorLayer({
-        lid: CHANNEL_LAYER_ID,
-        data: data,
-        coordtype: '1',
-        // 通道点位不做聚合，避免点击聚合图标拿不到具体通道
-        isOverlap: false,
-        filterfunc: () => true,
-        clicklistener: marker => {
-          this.$nextTick(() => {
-            this.showChannelInfo(marker.channel || marker)
-          })
-        }
-      })
+      this.channelLayer.update(this.channels)
     },
     /**
      * 重新拉取通道并重绘点位
@@ -343,9 +387,7 @@ export default {
       if (command === this.maptype) {
         return
       }
-      this.closeInfoBox()
-      this.mapReady = false
-      this.mapApp = null
+      this.onMapLoading()
       this.maptype = command
     },
     getContextmenu: function (event) {
@@ -510,13 +552,24 @@ export default {
 </script>
 
 <style>
+.channel-load-status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 5;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, .95);
+  color: #606266;
+  border-radius: 4px;
+}
 .hi-map-area {
   position: relative;
   height: 100%;
   overflow: hidden;
 }
 .map-infobox {
-  /* 弹窗定位在地图容器内，具体 left/top 由地图坐标换算得到 */
+  /* 拖动只更新合成变换，避免每帧变更 left/top 触发布局。 */
+  will-change: transform;
   pointer-events: auto;
 }
 .map-tool-box-bottom-right {

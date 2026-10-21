@@ -311,6 +311,11 @@ public class ChannelController {
         Assert.notNull(channel, "通道不存在");
 
         DeferredResult<WVPResult<StreamContent>> result = new DeferredResult<>(userSetting.getPlayTimeout().longValue());
+        result.onTimeout(() -> {
+            log.warn("[通用通道播放超时] channelId: {}, 国标编号: {}, timeout: {}ms",
+                    channelId, channel.getGbDeviceId(), userSetting.getPlayTimeout());
+            result.setResult(WVPResult.fail(InviteErrorCode.ERROR_FOR_STREAM_TIMEOUT.getCode(), "播放超时，请重试"));
+        });
 
         ErrorCallback<StreamInfo> callback = (code, msg, streamInfo) -> {
             if (code == InviteErrorCode.SUCCESS.getCode()) {

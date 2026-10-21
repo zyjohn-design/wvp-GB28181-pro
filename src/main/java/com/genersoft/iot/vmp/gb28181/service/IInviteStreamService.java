@@ -63,6 +63,21 @@ public interface IInviteStreamService {
      */
     boolean onceAndFirst(InviteSessionType type, Integer channelId, String stream, ErrorCallback<StreamInfo> callback);
 
+    /** 注册一轮点播；异步结果只能完成本轮，不能完成超时后新建的下一轮。 */
+    InviteRequest register(InviteSessionType type, Integer channelId, String stream, ErrorCallback<StreamInfo> callback);
+
+    interface InviteRequest extends ErrorCallback<StreamInfo> {
+        boolean isFirst();
+
+        boolean isPending();
+
+        /** 收流可能早于 SIP 200 到达；本轮完成后仍允许本轮的 200 处理，直到被新一轮替换。 */
+        boolean isCurrent();
+    }
+
+    /** 终止等待者；stream 为 null 时终止该通道、该类型的所有等待。不会修改 SSRC/Redis 状态。 */
+    void cancel(InviteSessionType type, Integer channelId, String stream);
+
     /**
      * 调用一个invite回调
      */

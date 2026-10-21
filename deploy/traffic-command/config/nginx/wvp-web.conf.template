@@ -2,6 +2,27 @@ server {
     listen 8080;
     server_name _;
 
+    # 地图入口随前端版本发布，不允许缺失脚本/HTML回退成 Vue 的 index.html。
+    location ^~ /map-entry/ {
+        root /opt/dist;
+        try_files $uri =404;
+        add_header Cache-Control "no-store" always;
+    }
+    location ^~ /map/ {
+        root /opt/dist;
+        try_files $uri =404;
+        add_header Cache-Control "no-cache" always;
+    }
+    location = /map-bootstrap.js {
+        root /opt/dist;
+        try_files $uri =404;
+        add_header Cache-Control "no-cache" always;
+    }
+    location = /index.html {
+        root /opt/dist;
+        add_header Cache-Control "no-cache" always;
+    }
+
     location / {
         root /opt/dist;
         index index.html;

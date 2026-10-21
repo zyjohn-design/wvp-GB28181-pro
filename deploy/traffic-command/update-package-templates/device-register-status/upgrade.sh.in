@@ -15,6 +15,7 @@ WEB_BACKUP='__WEB_BACKUP__'
 prepare_deployment
 validate_image "$BACKEND_CURRENT"
 validate_image "$WEB_CURRENT"
+check_nginx_template
 echo "现场后端镜像：$BACKEND_CURRENT"
 echo "现场前端镜像：$WEB_CURRENT"
 
@@ -45,6 +46,7 @@ docker build --pull=false --network=none --platform="linux/$TARGET_ARCH" \
     --build-arg "BASE_IMAGE=$WEB_CURRENT" \
     -f "$SCRIPT_DIR/docker/web.Dockerfile" -t "$WEB_RELEASE" "$SCRIPT_DIR"
 
+install_nginx_template
 docker tag "$BACKEND_RELEASE" "$BACKEND_CURRENT"
 docker tag "$WEB_RELEASE" "$WEB_CURRENT"
 ./compose.sh up -d --no-deps --force-recreate polaris-wvp polaris-wvp-web

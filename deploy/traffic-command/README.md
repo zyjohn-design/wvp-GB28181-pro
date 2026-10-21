@@ -283,9 +283,11 @@ WVP 配置位于宿主机 `config/wvp/`，修改后重启 `polaris-wvp` 即可�
 
 ### 8.1 电子地图配置（`config/map`，改完刷新即生效）
 
-`/map` 页面由 HiMap（iframe 承载 `public/map/arcgis.html`、`arcgis-dark.html`）渲染，
-底图参数放在 `config/map/himap-config-light.js`、`himap-config-dark.js`。该目录已挂载到前端容器
-的 `/opt/dist/map`（只读），因此**更新前端镜像不会覆盖现场地图配置**。
+`/map` 页面由 HiMap 渲染。新版 iframe 入口位于前端镜像的 `/map-entry/arcgis.html`、
+`arcgis-dark.html`，启动脚本为 `/map-bootstrap.js`，随前端一起更新。
+底图参数仍从 `config/map/himap-config-light.js`、`himap-config-dark.js` 读取。
+该配置目录挂载到 `/opt/dist/map`（只读），**更新前端镜像不会覆盖现场地图配置**，
+也不会让配置目录中遗留的旧入口 HTML 遮盖新版入口。
 
 | 参数 | 说明 | 参考值 |
 |---|---|---|
@@ -297,7 +299,31 @@ WVP 配置位于宿主机 `config/wvp/`，修改后重启 `polaris-wvp` 即可�
 | `GEOSERVERURL` | GeoServer 地址（WMS 服务） | 按现场填写 |
 
 改完保存后**刷新浏览器页面即生效**，不需要重新打包或重启容器。若 `config/map` 为空，
-地图页会 404，可从 `web/public/map/` 复制默认配置补齐。
+地图配置会 404，可从 `web/public/map/` 复制默认配置补齐。
+
+底图加载失败时，页面最多自动重试两次，也可点击“重新加载地图”；每次重新请求入口、
+配置、启动脚本和样式，保留瓦片缓存，不清除登录信息。地图 SDK 按供应商约定保留
+`himap.js` 原地址，兼容通过文件名读取 `maptype/onready` 的旧版本。摄像头点位单独请求
+`GET /api/common/channel/map/list`，失败时可点击“重新加载点位”，无需重载底图。
+无有效坐标、接口请求失败和底图加载失败会分别提示。切换页面后再次进入也会刷新点位。
+
+排查时在浏览器开发者工具中查看 Network 与 Console：
+
+| 现象 | 重点检查 | 日志标记 |
+|---|---|---|
+| 底图空白 | `/map-entry/`、`/map-bootstrap.js`、`/map/himap-config-*.js` 是否正常返回；地图 SDK、样式和瓦片服务是否可达 | `[HiMap]`，含失败阶段与资源地址 |
+| 底图正常但无点位 | `/api/common/channel/map/list` 是否成功、是否为数组、通道经纬度是否有效；定位全部通道 | `[电子地图] 点位请求或绘制失败` |
+| 更新后仍运行旧代码 | 更新前端容器；确认 `/map-entry/` 来自新镜像，入口和配置响应的 Cache-Control 已生效 | 新入口请求应包含 `v`，配置和样式请求包含 `_mapv` |
+
+摄像头图标优先使用 HiMap 的 `CanvasSymbolLayer` 批量绘制（不聚合），跟随地图引擎平移、
+缩放；SDK 不支持时回退原矢量图层。刷新只更新数据，未变化的点位不重建图层。
+地图实例和图层不参与 Vue 深层响应式观察。信息框移动按动画帧合并，使用 `translate3d`
+更新位置，避免拖动时重渲染设备树；切换地图、销毁页面时释放图层，离开页面时停止动画帧。
+
+Nginx 模板已对入口禁用缓存、对配置要求重新验证，地图资源缺失时返回 404，避免回退到
+Vue 首页。现场更新该模板后需重启 `polaris-wvp-web` 使模板重新生成；仅修改地图参数时无需重启。
+新版增量包会自动备份并更新项目原版 Nginx 模板，回滚时恢复；若检测到定制模板则在
+修改镜像前停止，由维护人员核对并适配，避免覆盖现场代理规则。地图参数目录保持不变。
 
 ### 8.2 一键更新前端（含电子地图）
 

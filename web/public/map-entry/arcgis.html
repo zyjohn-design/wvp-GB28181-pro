@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>电子地图</title>
+  <style>
+  html, body, #map {
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #map {
+    position: relative;
+  }
+
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    // 同一次 document.write 输出有序脚本：配置先执行，启动脚本随后执行。
+    var mapVersion = encodeURIComponent(new URLSearchParams(location.search).get('v') || Date.now().toString(36));
+    document.write('<script src="../map/himap-config-light.js?_mapv=' + mapVersion +
+      '" onerror="window._MapLoadState={error:true,message:\'地图配置加载失败\'}"><\/script>' +
+      '<script src="../map-bootstrap.js?v=' + mapVersion + '" data-himap-autostart="true" data-pitch="45" onerror="window._MapLoadState={error:true,message:\'地图启动脚本加载失败\'}"><\/script>');
+  </script>
+</body>
+</html>

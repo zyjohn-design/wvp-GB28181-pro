@@ -79,7 +79,11 @@ def main():
     run('frontend-tests', ['npx', '--no-install', 'vue-cli-service', 'test:unit', '--runInBand', '--watch=false',
                           '--json', '--outputFile=' + str(logs / 'frontend-tests.json'),
                           'tests/unit/utils/presetApi.spec.js', 'tests/unit/utils/presetId.spec.js',
-                          'tests/unit/utils/requestError.spec.js', 'tests/unit/views/presetRemarks.spec.js'], ROOT / 'web')
+                          'tests/unit/utils/requestError.spec.js', 'tests/unit/views/presetRemarks.spec.js',
+                          'tests/unit/components/HiMap.spec.js', 'tests/unit/utils/mapBootstrap.spec.js',
+                          'tests/unit/views/mapRecovery.spec.js', 'tests/unit/utils/channelMapLayer.spec.js',
+                          'tests/unit/views/mapInteraction.spec.js'], ROOT / 'web')
+    run('map-entry-tests', ['node', 'tests/map-entry-smoke.js'], ROOT / 'web')
     run('frontend-build', ['npm', 'run', 'build:prod'], ROOT / 'web')
     run('backend-test-package', ['mvn', '-q', 'clean', 'package', '-P', 'jar'])
     require(not git('status', '--porcelain') and git('rev-parse', 'HEAD') == commit, '构建期间源码发生变化，停止打包')
@@ -116,6 +120,9 @@ def main():
         (package / 'docker').mkdir()
         (package / 'docs').mkdir()
         (package / 'database').mkdir()
+        (package / 'config').mkdir()
+        shutil.copy2(DEPLOY / 'config/nginx/wvp-web.conf.template', package / 'config/wvp-web.conf.template')
+        shutil.copy2(TEMPLATES / 'nginx-before-map-cache.conf.template', package / 'config/nginx-before-map-cache.conf.template')
         shutil.copy2(jar, package / 'artifacts/wvp.jar')
         shutil.copytree(static, package / 'artifacts/web-static', ignore=shutil.ignore_patterns('.DS_Store'))
         shutil.copytree(ROOT / 'doc/api', package / 'docs/api')
@@ -154,6 +161,8 @@ def main():
 
 本包累积包含当前版本前后端：国标预置位指令与SIP应答、平台名称备注、
 预置位列表同步、云台参数与错误提示修复，以及可点击跳转的完整接口文档。
+本次新增：点播在途状态超时清理与重试、停止点播的状态释放；电子地图加载失败恢复、
+底图与点位分别重试、地图入口缓存修复，以及设备点位 Canvas 批量绘制与拖动跟随优化。
 文档入口：docs/第三方对接接口手册.md，docs/api目录需一起保留。
 
 ## 适用环境与前置条件
@@ -163,6 +172,11 @@ def main():
 目标服务器必须已有同架构后端Java21和前端基础镜像。脚本检测现场镜像并离线构建增量层，
 不下载基础镜像，不包含JRE、数据库、Redis或流媒体镜像。两个架构使用相同的跨平台JAR和静态资源，
 按各自架构校验主机、镜像与发布回滚标签。服务更新会短暂重启。
+
+脚本会将项目原版 Nginx 模板更新为带地图缓存规则的版本，并备份原模板供回滚；
+config/map 中的现场地图参数不修改。若 Nginx 模板已定制，脚本在修改镜像前停止，
+请先由维护人员核对本包 config/wvp-web.conf.template 中的地图 location 与现场规则，
+适配升级脚本后再升级，避免覆盖自定义代理配置。
 
 ## 数据库变化
 
@@ -187,6 +201,7 @@ cd {name}
 将/opt/gb28181-h5替换为实际部署目录。升级后检查后端启动日志、两个容器状态，
 浏览器强制刷新；验收播放、云台stop、预置位查询/设置/调用/删除/改名。
 设置会保存镜头当前位置，同号可能覆盖，验收请使用专用测试编号。
+同时检查此前超时通道是否发起新点播、地图首次加载/切换页面/失败重试、点位显示和拖动跟随。
 
 ## 回滚
 
@@ -195,6 +210,7 @@ cd {name}
 ```
 
 保留升级前镜像以及部署目录.wvp-updates/{release_id}-{arch}/，回滚依赖这些记录。
+回滚同时恢复升级前 Nginx 模板。不要删除该目录和备份镜像。
 脚本检查容器running不等同于业务健康；仍需执行上述现场验收。
 
 ## 校验范围
