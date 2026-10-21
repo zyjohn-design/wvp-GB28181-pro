@@ -103,7 +103,8 @@ def main():
                          'com/genersoft/iot/vmp/gb28181/service/impl/PresetRemarkService.class']:
             require(archive.read('BOOT-INF/classes/' + relative) == (ROOT / 'target/classes' / relative).read_bytes(), 'JAR内容不一致：' + relative)
         require(archive.read('BOOT-INF/classes/static/index.html') == (static / 'index.html').read_bytes(), 'JAR内前端不同步')
-        require(b'git.commit.id=' + commit.encode() in archive.read('BOOT-INF/classes/git.properties'), 'JAR提交号不一致')
+        properties = archive.read('BOOT-INF/classes/git.properties').decode()
+        require(re.search(r'^git\.commit\.id(?:\.full)?=' + re.escape(commit) + r'$', properties, re.M), 'JAR提交号不一致')
 
     outputs = []
     for arch in (['amd64', 'arm64'] if args.arch == 'both' else [args.arch]):
