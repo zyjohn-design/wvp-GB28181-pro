@@ -1,0 +1,15 @@
+# JTChannelParam
+
+[文档入口](../../第三方对接接口手册.md) · [模型索引](../模型索引.md)
+
+源码：`src/main/java/com/genersoft/iot/vmp/jt1078/bean/config/JTChannelParam.java`
+
+模型字段表描述可识别的源码字段，包含继承字段；请求必填由具体接口决定。Java初始值不等于请求默认值。未声明的格式、单位或可空条件不能自行推断。
+
+| 字段 | JSON类型 | Java类型 | 请求必填 / 可空 | 格式 / 范围 / 可选值 | 默认值 / 未传行为 | 说明 | 示例 |
+|---|---|---|---|---|---|---|---|
+| `jtAloneChanelList` | array | `List<JTAloneChanel>` | 由具体接口决定 | JSON数组；元素类型见说明 | 源码未声明默认值 | 单独通道视频参数设置列表 | `[]` |
+
+## 关联模型
+
+- [JTAloneChanel](JTAloneChanel-38f81f3e9b20.md)：`src/main/java/com/genersoft/iot/vmp/jt1078/bean/config/JTAloneChanel.java`

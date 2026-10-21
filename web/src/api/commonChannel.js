@@ -451,6 +451,7 @@ export function addPreset({ channelId, presetId, presetName }) {
   if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
+    retryOnNetworkError: false,
     url: '/api/common/channel/front-end/preset/add',
     params: {
       channelId: channelId,
@@ -460,11 +461,22 @@ export function addPreset({ channelId, presetId, presetName }) {
   })
 }
 
+export function setPresetRemark({ channelId, presetId, presetName }) {
+  const id = parsePresetId(presetId)
+  if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
+  return request({
+    method: 'post',
+    url: '/api/common/channel/front-end/preset/remark',
+    params: { channelId, presetId: id, presetName }
+  })
+}
+
 export function callPreset({ channelId, presetId }) {
   const id = parsePresetId(presetId)
   if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
+    retryOnNetworkError: false,
     url: '/api/common/channel/front-end/preset/call',
     params: {
       channelId: channelId,
@@ -478,6 +490,7 @@ export function deletePreset({ channelId, presetId }) {
   if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
+    retryOnNetworkError: false,
     url: '/api/common/channel/front-end/preset/delete',
     params: {
       channelId: channelId,

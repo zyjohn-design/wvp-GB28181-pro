@@ -1,6 +1,7 @@
 package com.genersoft.iot.vmp.gb28181.controller;
 
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
+import com.genersoft.iot.vmp.gb28181.service.impl.PresetRemarkService;
 import com.genersoft.iot.vmp.conf.security.JwtUtils;
 import com.genersoft.iot.vmp.gb28181.bean.*;
 import com.genersoft.iot.vmp.gb28181.service.IGbChannelControlService;
@@ -16,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,6 +31,9 @@ import java.util.List;
 @Slf4j
 @RequestMapping(value = "/api/common/channel/front-end")
 public class ChannelFrontEndController {
+
+    @Autowired
+    private PresetRemarkService presetRemarkService;
 
     @Autowired
     private IGbChannelService channelService;
@@ -73,6 +78,7 @@ public class ChannelFrontEndController {
         controlCode.setPanSpeed(panSpeed);
         controlCode.setTiltSpeed(tiltSpeed);
         controlCode.setZoomSpeed(zoomSpeed);
+        Assert.hasText(command, "command 不能为空");
         switch (command){
             case "left":
                 controlCode.setPan(0);
@@ -108,8 +114,10 @@ public class ChannelFrontEndController {
             case "zoomout":
                 controlCode.setZoom(0);
                 break;
-            default:
+            case "stop":
                 break;
+            default:
+                throw new ControllerException(ErrorCode.ERROR100.getCode(), "不支持的云台指令 command：" + command);
         }
 
         DeferredResult<WVPResult<String>> result = new DeferredResult<>();
@@ -258,8 +266,13 @@ public class ChannelFrontEndController {
             WVPResult<List<Preset>> wvpResult = new WVPResult<>();
             wvpResult.setCode(code);
             wvpResult.setMsg(msg);
-            wvpResult.setData(data);
-            result.setResult(wvpResult);
+            try {
+                wvpResult.setData(code == 0 ? presetRemarkService.apply(channelId, data) : data);
+                result.setResult(wvpResult);
+            } catch (RuntimeException exception) {
+                log.error("[读取预置位名称备注失败]", exception);
+                result.setResult(WVPResult.fail(100, "读取预置位名称备注失败，请稍后重试"));
+            }
         };
 
         channelControlService.queryPreset(channel, callback);
@@ -268,23 +281,21 @@ public class ChannelFrontEndController {
     }
 
     private DeferredResult<WVPResult<String>> controlPreset(Integer channelId, FrontEndControlCodeForPreset controlCode) {
+        String name = PresetRemarkService.name(controlCode.getPresetId(), controlCode.getPresetName());
         CommonGBChannel channel = channelService.getOne(channelId);
         Assert.notNull(channel, "通道不存在");
 
 
-        DeferredResult<WVPResult<String>> result = new DeferredResult<>();
+        DeferredResult<WVPResult<String>> result = new DeferredResult<>(30_000L);
 
         result.onTimeout(()->{
-            WVPResult<String> wvpResult = WVPResult.fail(ErrorCode.ERROR100.getCode(), "请求超时");
+            WVPResult<String> wvpResult = WVPResult.fail(ErrorCode.ERROR408.getCode(), "预置位指令应答超时，未确认设备接收");
             result.setResult(wvpResult);
         });
 
         ErrorCallback<String> callback = (code, msg, data) -> {
-            WVPResult<String> wvpResult = new WVPResult<>();
-            wvpResult.setCode(code);
-            wvpResult.setMsg(msg);
-            wvpResult.setData(data);
-            result.setResult(wvpResult);
+            result.setResult(presetRemarkService.controlResult(channelId, 0x80 + controlCode.getCode(),
+                    controlCode.getPresetId(), name, code, msg, data));
         };
 
         channelControlService.preset(channel, controlCode, callback);
@@ -294,7 +305,7 @@ public class ChannelFrontEndController {
     @Operation(summary = "预置位指令-设置预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
     @Parameter(name = "channelId", description = "通用通道数据库整数ID（CommonGBChannel.gbId）", required = true)
     @Parameter(name = "presetId", description = "预置位编号(1-255的整数)", required = true)
-    @Parameter(name = "presetName", description = "预置位名称", required = true)
+    @Parameter(name = "presetName", description = "平台名称备注，不填默认预置点+编号", required = false)
     @GetMapping("/preset/add")
     public DeferredResult<WVPResult<String>> addPreset(Integer channelId, @RequestParam(value = "presetId", required = false) String presetId, String presetName) {
         FrontEndControlCodeForPreset controlCode = new FrontEndControlCodeForPreset();
@@ -303,6 +314,17 @@ public class ChannelFrontEndController {
         controlCode.setPresetName(presetName);
 
         return controlPreset(channelId, controlCode);
+    }
+
+    @Operation(summary = "修改平台预置位名称备注（不下发设备）")
+    @PostMapping("/preset/remark")
+    public WVPResult<String> remarkPreset(@RequestParam Integer channelId, @RequestParam String presetId,
+                                         @RequestParam(required = false) String presetName) {
+        int id = PresetIdValidator.parse(presetId);
+        Assert.notNull(channelService.getOne(channelId), "通道不存在");
+        String name = PresetRemarkService.name(id, presetName);
+        presetRemarkService.save(channelId, id, name);
+        return WVPResult.success(name);
     }
 
     @Operation(summary = "预置位指令-调用预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))

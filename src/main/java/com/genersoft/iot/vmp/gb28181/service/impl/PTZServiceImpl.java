@@ -11,6 +11,7 @@ import com.genersoft.iot.vmp.gb28181.service.IDeviceChannelService;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
 import com.genersoft.iot.vmp.gb28181.service.IPTZService;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.impl.SIPCommander;
+import com.genersoft.iot.vmp.gb28181.event.SipSubscribe;
 import com.genersoft.iot.vmp.service.bean.ErrorCallback;
 import com.genersoft.iot.vmp.service.redisMsg.IRedisRpcPlayService;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
@@ -21,8 +22,10 @@ import org.springframework.util.Assert;
 
 import javax.sip.InvalidArgumentException;
 import javax.sip.SipException;
+import javax.sip.message.Response;
 import java.text.ParseException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -89,6 +92,63 @@ public class PTZServiceImpl implements IPTZService {
         }
         DeviceChannel deviceChannel = deviceChannelService.getOneForSourceById(channel.getGbId());
         frontEndCommand(device, deviceChannel.getDeviceId(), cmdCode, parameter1, parameter2, combindCode2);
+    }
+
+    @Override
+    public void preset(Device device, String channelId, int cmdCode, int presetId, ErrorCallback<String> callback) {
+        AtomicBoolean completed = new AtomicBoolean();
+        ErrorCallback<String> once = (code, msg, data) -> {
+            if (completed.compareAndSet(false, true)) {
+                callback.run(code, msg, data);
+            }
+        };
+        if (cmdCode < 0x81 || cmdCode > 0x83 || presetId < 1 || presetId > 255) {
+            once.run(ErrorCode.ERROR400.getCode(), "预置位指令或编号无效，编号必须为1-255", null);
+            return;
+        }
+        try {
+            Assert.notNull(device, "设备不存在");
+            DeviceChannel source = deviceChannelService.getOneForSource(device.getDeviceId(), channelId);
+            Assert.notNull(source, "通道不存在");
+            if (!userSetting.getServerId().equals(device.getServerId())) {
+                redisRpcPlayService.preset(device.getServerId(), source.getId(), cmdCode, presetId, once);
+                return;
+            }
+            // 云台控制只等待 SIP 200 OK，不等待 XML 执行结果或镜头到位通知。
+            String command = SIPCommander.frontEndCmdString(cmdCode, 0, presetId, 0);
+            cmder.fronEndCmd(device, source.getDeviceId(), command,
+                    event -> {
+                        boolean timeout = event.type == SipSubscribe.EventResultType.timeout;
+                        once.run(timeout ? Response.REQUEST_TIMEOUT : (event.statusCode > 0 ? event.statusCode : ErrorCode.ERROR100.getCode()),
+                                timeout ? "预置位指令应答超时，未确认设备接收，请刷新设备状态后重试" : "预置位指令失败：" + event.msg, null);
+                    },
+                    event -> {
+                        if (event.statusCode == Response.OK) {
+                            once.run(ErrorCode.SUCCESS.getCode(), "设备已接收预置位指令", null);
+                        } else {
+                            once.run(event.statusCode > 0 ? event.statusCode : ErrorCode.ERROR100.getCode(),
+                                    "预置位指令未收到 SIP 200 OK：" + event.msg, null);
+                        }
+                    });
+        } catch (Exception e) {
+            log.error("[预置位指令失败] {}", e.getMessage());
+            once.run(ErrorCode.ERROR100.getCode(), "预置位指令发送失败：" + e.getMessage(), null);
+        }
+    }
+
+    @Override
+    public void preset(CommonGBChannel channel, int cmdCode, int presetId, ErrorCallback<String> callback) {
+        if (channel == null || channel.getDataType() == null || channel.getDataType() != ChannelDataType.GB28181) {
+            callback.run(ErrorCode.ERROR400.getCode(), "通道不支持国标预置位控制", null);
+            return;
+        }
+        Device device = deviceService.getDevice(channel.getDataDeviceId());
+        DeviceChannel source = deviceChannelService.getOneForSourceById(channel.getGbId());
+        if (device == null || source == null) {
+            callback.run(ErrorCode.ERROR404.getCode(), "设备或原始通道不存在", null);
+            return;
+        }
+        preset(device, source.getDeviceId(), cmdCode, presetId, callback);
     }
 
     @Override

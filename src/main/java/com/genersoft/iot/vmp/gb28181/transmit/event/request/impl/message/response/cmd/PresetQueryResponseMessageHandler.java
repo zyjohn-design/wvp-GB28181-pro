@@ -141,7 +141,9 @@ public class PresetQueryResponseMessageHandler extends SIPRequestProcessorParent
                     }
                     return;
                 }
+                delayQueue.remove(messageResponseTask);
                 messageResponseTask.setDelayTime(System.currentTimeMillis() + 1000);
+                delayQueue.offer(messageResponseTask);
             }else {
                 MessageResponseTask<Preset> messageResponseTask = new MessageResponseTask<>();
                 messageResponseTask.setElement(rootElement);
@@ -157,19 +159,13 @@ public class PresetQueryResponseMessageHandler extends SIPRequestProcessorParent
     // 处理过期的缓存
     @Scheduled(fixedDelay = 500, timeUnit = TimeUnit.MILLISECONDS)
     public void expirationCheck(){
-        while (!delayQueue.isEmpty()) {
-            MessageResponseTask<Preset> take = null;
-            try {
-                take = delayQueue.take();
-                try {
-                    responseMessageHandler.handMessageEvent(take.getElement(), take.getData());
-                    mesageMap.remove(take.getKey());
-                }catch (Exception e) {
-                    log.error("[预置位查询到期] {} 到期处理时出现异常", take.getKey());
-                }
-            } catch (InterruptedException e) {
-                log.error("[设备订阅任务] ", e);
-            }
+        MessageResponseTask<Preset> task;
+        while ((task = delayQueue.poll()) != null) {
+            mesageMap.remove(task.getKey(), task);
+            // 不完整的分包不能作为全量列表返回成功，否则同步方可能误删预置位。
+            // 保留查询订阅，由订阅超时向调用方返回失败。
+            log.warn("[预置位查询不完整] {}，已接收 {} 项，等待查询超时返回失败",
+                    task.getKey(), task.getData().size());
         }
     }
 

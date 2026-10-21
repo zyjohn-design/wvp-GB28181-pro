@@ -1,0 +1,21 @@
+# OtherRtpSendInfo
+
+[文档入口](../../第三方对接接口手册.md) · [模型索引](../模型索引.md)
+
+源码：`src/main/java/com/genersoft/iot/vmp/vmanager/bean/OtherRtpSendInfo.java`
+
+模型字段表描述可识别的源码字段，包含继承字段；请求必填由具体接口决定。Java初始值不等于请求默认值。未声明的格式、单位或可空条件不能自行推断。
+
+| 字段 | JSON类型 | Java类型 | 请求必填 / 可空 | 格式 / 范围 / 可选值 | 默认值 / 未传行为 | 说明 | 示例 |
+|---|---|---|---|---|---|---|---|
+| `sendLocalIp` | string | `String` | 由具体接口决定 | 源码未声明格式或范围 | 源码未声明默认值 | 发流IP | `"<sendLocalIp>"` |
+| `sendLocalPortForAudio` | integer | `int` | 由具体接口决定 | 整数 | 源码未声明默认值 | 音频发流端口 | `1` |
+| `sendLocalPortForVideo` | integer | `int` | 由具体接口决定 | 整数 | 源码未声明默认值 | 视频发流端口 | `1` |
+| `receiveIp` | string | `String` | 由具体接口决定 | 源码未声明格式或范围 | 源码未声明默认值 | 收流IP | `"<receiveIp>"` |
+| `receivePortForAudio` | integer | `int` | 由具体接口决定 | 整数 | 源码未声明默认值 | 音频收流端口 | `1` |
+| `receivePortForVideo` | integer | `int` | 由具体接口决定 | 整数 | 源码未声明默认值 | 视频收流端口 | `1` |
+| `callId` | string | `String` | 由具体接口决定 | 源码未声明格式或范围 | 源码未声明默认值 | 会话ID | `"<callId>"` |
+| `stream` | string | `String` | 由具体接口决定 | 源码未声明格式或范围 | 源码未声明默认值 | 流ID | `"<stream>"` |
+| `pushApp` | string | `String` | 由具体接口决定 | 源码未声明格式或范围 | 源码未声明默认值 | 推流应用名 | `"<pushApp>"` |
+| `pushStream` | string | `String` | 由具体接口决定 | 源码未声明格式或范围 | 源码未声明默认值 | 推流流ID | `"<pushStream>"` |
+| `pushSSRC` | string | `String` | 由具体接口决定 | 源码未声明格式或范围 | 源码未声明默认值 | 推流SSRC | `"<pushSSRC>"` |

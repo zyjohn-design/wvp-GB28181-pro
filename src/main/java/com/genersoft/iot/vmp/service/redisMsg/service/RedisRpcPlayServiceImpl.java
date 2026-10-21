@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.genersoft.iot.vmp.common.InviteSessionType;
 import com.genersoft.iot.vmp.common.StreamInfo;
 import com.genersoft.iot.vmp.conf.UserSetting;
+import com.genersoft.iot.vmp.conf.SipConfig;
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
 import com.genersoft.iot.vmp.conf.redis.RedisRpcConfig;
 import com.genersoft.iot.vmp.conf.redis.bean.RedisRpcRequest;
@@ -32,6 +33,9 @@ public class RedisRpcPlayServiceImpl implements IRedisRpcPlayService {
 
     @Autowired
     private UserSetting userSetting;
+
+    @Autowired
+    private SipConfig sipConfig;
 
 
     private RedisRpcRequest buildRequest(String uri, Object param) {
@@ -190,6 +194,24 @@ public class RedisRpcPlayServiceImpl implements IRedisRpcPlayService {
             }
         }
         return null;
+    }
+
+    @Override
+    public void preset(String serverId, Integer channelId, int cmdCode, int presetId, ErrorCallback<String> callback) {
+        JSONObject params = new JSONObject();
+        params.put("channelId", channelId);
+        params.put("cmdCode", cmdCode);
+        params.put("presetId", presetId);
+        RedisRpcRequest request = buildRequest("channel/ptz/preset", params);
+        request.setToId(serverId);
+        // 留出 SIP 应答超时及跨节点返回的时间，不把 RPC 发送成功当作设备接收成功。
+        long timeout = Math.max(userSetting.getPlayTimeout(), sipConfig.getTimeout() + 1000L);
+        RedisRpcResponse response = redisRpcConfig.request(request, timeout, TimeUnit.MILLISECONDS);
+        if (response == null) {
+            callback.run(ErrorCode.ERROR408.getCode(), "预置位指令跨节点应答超时，未确认设备接收", null);
+        } else {
+            callback.run(response.getStatusCode(), response.getBody() == null ? "预置位指令未确认设备接收" : response.getBody().toString(), null);
+        }
     }
 
     @Override

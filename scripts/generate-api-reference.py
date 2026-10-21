@@ -320,7 +320,7 @@ def parse_controllers():
                 description, annotated_required = described.get(name, ("", False))
                 if not description:
                     description = SPECIAL.get(name, "源码未提供说明；请结合业务字段核对")
-                required = "是" if place == "path" or annotated_required or "required = true" in raw else "未声明"
+                required = "是" if place == "path" or annotated_required or "required = true" in raw or any(annotation in raw for annotation in ("@RequestParam", "@RequestHeader", "@RequestPart")) else "未声明"
                 if "required = false" in raw or "defaultValue" in raw:
                     required = "否"
                 if place == "JSON body" and "@RequestBody" in raw:
@@ -331,6 +331,9 @@ def parse_controllers():
                         description = "动态 JSON 对象；字段由对应回调协议定义"
                     else:
                         description = "请求体模型；字段见模型索引"
+                default_match = re.search(r'defaultValue\s*=\s*"([^"\n]*)"', raw)
+                if default_match:
+                    description += "；默认值：" + default_match.group(1)
                 parameters.append((name, clean(typ), place, required, clean(description)))
             endpoints.append((mappings, clean(summary), clean(method.group(1)), parameters))
         if endpoints:
@@ -380,6 +383,9 @@ def parse_models(model_types: set[str]):
                     description = clean(re.sub(r"(?m)^\s*\*\s?", "", comments[-1]))
             if not description:
                 description = FIELD_HELP.get(match.group(2), "源码未标注字段含义")
+            initializer = re.search(r'=\s*(true|false|-?\d+(?:\.\d+)?[dDfFlL]?|"[^"\n]*")\s*;', match.group(0))
+            if initializer:
+                description += "；Java初始值：" + initializer.group(1)
             fields.append((match.group(2), clean(match.group(1)), clean(description)))
         field_names = {name for name, _, _ in fields}
         for annotation in re.finditer(r"@Schema\s*\(", body):

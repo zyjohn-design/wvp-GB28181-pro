@@ -127,15 +127,27 @@ export function stopCruise([deviceId, channelDeviceId, cruiseId]) {
   })
 }
 
-export function addPreset([deviceId, channelDeviceId, presetId]) {
+export function addPreset([deviceId, channelDeviceId, presetId, presetName]) {
   const id = parsePresetId(presetId)
   if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
+    retryOnNetworkError: false,
     url: `/api/front-end/preset/add/${deviceId}/${channelDeviceId}`,
     params: {
-      presetId: id
+      presetId: id,
+      presetName: presetName
     }
+  })
+}
+
+export function setPresetRemark([deviceId, channelDeviceId, presetId, presetName]) {
+  const id = parsePresetId(presetId)
+  if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
+  return request({
+    method: 'post',
+    url: `/api/front-end/preset/remark/${deviceId}/${channelDeviceId}`,
+    params: { presetId: id, presetName }
   })
 }
 
@@ -144,6 +156,7 @@ export function callPreset([deviceId, channelDeviceId, presetId]) {
   if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
+    retryOnNetworkError: false,
     url: `/api/front-end/preset/call/${deviceId}/${channelDeviceId}`,
     params: {
       presetId: id
@@ -156,6 +169,7 @@ export function deletePreset([deviceId, channelDeviceId, presetId]) {
   if (id === null) return Promise.reject(new Error('预置位编号必须为1-255之间的整数'))
   return request({
     method: 'get',
+    retryOnNetworkError: false,
     url: `/api/front-end/preset/delete/${deviceId}/${channelDeviceId}`,
     params: {
       presetId: id

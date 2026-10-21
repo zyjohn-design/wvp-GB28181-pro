@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -20,6 +22,18 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.OK)
+    public WVPResult<String> exceptionHandler(MissingServletRequestParameterException e) {
+        return WVPResult.fail(ErrorCode.ERROR100.getCode(), "缺少必填参数：" + e.getParameterName());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.OK)
+    public WVPResult<String> exceptionHandler(MethodArgumentTypeMismatchException e) {
+        return WVPResult.fail(ErrorCode.ERROR100.getCode(), "参数 " + e.getName() + " 类型错误，请检查参数格式和取值范围");
+    }
 
     /**
      * 默认异常处理

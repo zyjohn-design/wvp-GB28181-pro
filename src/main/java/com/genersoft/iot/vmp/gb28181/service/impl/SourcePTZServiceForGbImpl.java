@@ -76,28 +76,14 @@ public class SourcePTZServiceForGbImpl implements ISourcePTZService {
     @Override
     public void preset(CommonGBChannel channel, FrontEndControlCodeForPreset frontEndControlCode, ErrorCallback<String> callback) {
         try {
-            int cmdCode = 0;
-            int parameter1 = 0;
-            int parameter2 = 0;
-            int parameter3 = 0;
-            if (frontEndControlCode != null) {
-                if (frontEndControlCode.getCode() != null) {
-                    if (frontEndControlCode.getCode() == 1) {
-                        cmdCode = 0x81;
-                    } else if (frontEndControlCode.getCode() == 2) {
-                        cmdCode = 0x82;
-                    }else if (frontEndControlCode.getCode() == 3) {
-                        cmdCode = 0x83;
-                    }
-                }
-                if (frontEndControlCode.getPresetId() == null) {
-                    callback.run(ErrorCode.ERROR100.getCode(), "参数异常", null);
-                    return;
-                }
-                parameter2 = frontEndControlCode.getPresetId();
+            if (frontEndControlCode == null || frontEndControlCode.getCode() == null
+                    || frontEndControlCode.getCode() < 1 || frontEndControlCode.getCode() > 3
+                    || frontEndControlCode.getPresetId() == null
+                    || frontEndControlCode.getPresetId() < 1 || frontEndControlCode.getPresetId() > 255) {
+                callback.run(ErrorCode.ERROR400.getCode(), "预置位指令或编号无效，编号必须为1-255", null);
+                return;
             }
-            ptzService.frontEndCommand(channel, cmdCode, parameter1, parameter2, parameter3);
-            callback.run(ErrorCode.SUCCESS.getCode(), ErrorCode.SUCCESS.getMsg(), null);
+            ptzService.preset(channel, 0x80 + frontEndControlCode.getCode(), frontEndControlCode.getPresetId(), callback);
         }catch (Exception e) {
             log.error("[预置位控制失败] ", e);
             callback.run(ErrorCode.ERROR100.getCode(), e.getMessage(), null);

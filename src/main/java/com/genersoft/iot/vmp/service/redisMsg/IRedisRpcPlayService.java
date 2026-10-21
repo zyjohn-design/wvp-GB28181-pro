@@ -26,6 +26,8 @@ public interface IRedisRpcPlayService {
 
     String frontEndCommand(String serverId, Integer channelId, int cmdCode, int parameter1, int parameter2, int combindCode2);
 
+    void preset(String serverId, Integer channelId, int cmdCode, int presetId, ErrorCallback<String> callback);
+
     void playPush(String serverId, Integer id, ErrorCallback<StreamInfo> callback);
 
     void playProxy(String serverId, int id, ErrorCallback<StreamInfo> callback);

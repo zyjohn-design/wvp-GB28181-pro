@@ -30,7 +30,12 @@ export default {
         })
     },
     gotoPreset(preset) {
-      this.$store.dispatch('commonChanel/callPreset', { channelId: this.channelId, presetId: preset.presetId })
+      return this.$store.dispatch('commonChanel/callPreset', { channelId: this.channelId, presetId: preset.presetId })
+        .then(() => {
+          this.$message({ showClose: true, message: '设备已接收预置位调用指令', type: 'success' })
+        }).catch(error => {
+          this.$message({ showClose: true, message: error, type: 'error' })
+        })
     }
   }
 }

@@ -1,0 +1,163 @@
+# POST /api/device/query/device/add
+
+[文档入口](../../第三方对接接口手册.md) · [所属模块](../modules/DeviceQuery.md) · [AI 对接指南](../AI对接指南.md)
+
+#### 基本信息
+
+| 项 | 值 |
+|---|---|
+| 接口名称 | 添加设备信息 |
+| 请求方法 | `POST` |
+| 请求路径 | `/api/device/query/device/add` |
+| 认证方式 | access-token 或 api-key；ADMIN / OPERATOR |
+| Content-Type | application/json |
+| 负责人 | 仓库未指定；由对应模块维护者确认 |
+| 源码位置 | `src/main/java/com/genersoft/iot/vmp/gb28181/controller/DeviceQuery.java` / `DeviceQuery` |
+| 源码返回类型 | `void` |
+
+#### 请求头
+
+| 字段 | 位置 | 类型 | 必填 | 格式 / 范围 / 可选值 | 默认值 / 未传行为 | 说明 | 示例 |
+|---|---|---|---|---|---|---|---|
+| `access-token` | Header | string | 二选一 | 有效JWT | 未传时须提供另一种凭证 | 有效JWT；与api-key二选一；权限见基本信息 | `"<access-token>"` |
+| `api-key` | Header | string | 二选一 | 已启用的API Key | 未传时须提供另一种凭证 | 已启用的API Key；与access-token二选一；权限见基本信息 | `"<api-key>"` |
+| `Content-Type` | Header | string | 是 | application/json | 无；必须提供 | 请求体编码：application/json | `"application/json"` |
+
+#### Path 参数
+
+| 字段 | 位置 | 类型 | 必填 | 格式 / 范围 / 可选值 | 默认值 / 未传行为 | 说明 | 示例 |
+|---|---|---|---|---|---|---|---|
+| — | — | — | — | — | — | 无字段 | — |
+
+#### Query 参数
+
+| 字段 | 位置 | 类型 | 必填 | 格式 / 范围 / 可选值 | 默认值 / 未传行为 | 说明 | 示例 |
+|---|---|---|---|---|---|---|---|
+| — | — | — | — | — | — | 无字段 | — |
+
+#### Body 参数
+
+| 字段 | 位置 | 类型 | 必填 | 格式 / 范围 / 可选值 | 默认值 / 未传行为 | 说明 | 示例 |
+|---|---|---|---|---|---|---|---|
+| `$body` | JSON Body | object | 是 | JSON对象；字段见模型表 | 无；必须提供 | 请求体模型；字段见模型索引；整个JSON请求体，Java形参名device不是额外的JSON包装字段 | `{}` |
+| `$body.id` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 数据库自增ID | `1` |
+| `$body.deviceId` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 设备国标编号 | `"<deviceId>"` |
+| `$body.name` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 名称 | `"<name>"` |
+| `$body.manufacturer` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 生产厂商 | `"<manufacturer>"` |
+| `$body.model` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 型号 | `"<model>"` |
+| `$body.firmware` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 固件版本 | `"<firmware>"` |
+| `$body.transport` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 传输协议（UDP/TCP） | `"<transport>"` |
+| `$body.streamMode` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 数据流传输模式 | `"<streamMode>"` |
+| `$body.ip` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | IP | `"<ip>"` |
+| `$body.port` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 端口 | `1` |
+| `$body.hostAddress` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | wan地址 | `"<hostAddress>"` |
+| `$body.onLine` | JSON Body | boolean | 源码未声明；见业务校验 | true / false | 源码未声明默认值 | 是否在线，true为在线，false为离线 | `true` |
+| `$body.registerTimeStamp` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 注册时间戳 | `1` |
+| `$body.keepaliveTimeStamp` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 心跳时间 | `1` |
+| `$body.heartBeatInterval` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 心跳间隔 | `1` |
+| `$body.heartBeatCount` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 心跳超时次数 | `1` |
+| `$body.positionCapability` | JSON Body | integer | 源码未声明；见业务校验 | 整数；取值:0-不支持；2-支持北斗定位(可选,默认取值为0 | 取值为0 | 定位功能支持情况。取值:0-不支持;1-支持 GPS定位;2-支持北斗定位(可选,默认取值为0 | `1` |
+| `$body.channelCount` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 通道个数 | `1` |
+| `$body.expires` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 注册有效期 | `1` |
+| `$body.createTime` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 创建时间 | `"<createTime>"` |
+| `$body.updateTime` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 更新时间 | `"<updateTime>"` |
+| `$body.mediaServerId` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | null | 设备使用的媒体id, 默认为null | `"<mediaServerId>"` |
+| `$body.charset` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 字符集, 支持 UTF-8、GB2312、GBK 与 GB18030 | `"<charset>"` |
+| `$body.subscribeCycleForCatalog` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 目录订阅周期，o为不订阅 | `1` |
+| `$body.subscribeCycleForMobilePosition` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 移动设备位置订阅周期，0为不订阅 | `1` |
+| `$body.mobilePositionSubmissionInterval` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 5（Java初始值；请求默认值依接口） | 移动设备位置信息上报时间间隔,单位:秒,默认值5；Java初始值：5 | `1` |
+| `$body.subscribeCycleForAlarm` | JSON Body | integer | 源码未声明；见业务校验 | 整数 | 源码未声明默认值 | 报警心跳时间订阅周期，0为不订阅 | `1` |
+| `$body.ssrcCheck` | JSON Body | boolean | 源码未声明；见业务校验 | true / false | false（Java初始值；请求默认值依接口） | 是否开启ssrc校验，默认关闭，开启可以防止串流；Java初始值：false | `true` |
+| `$body.geoCoordSys` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 地理坐标系， 目前支持 WGS84,GCJ02 | `"<geoCoordSys>"` |
+| `$body.password` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 密码 | `"<32位MD5或该接口规定的密码>"` |
+| `$body.sdpIp` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 收流IP | `"<sdpIp>"` |
+| `$body.localIp` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | SIP交互IP（设备访问平台的IP） | `"<localIp>"` |
+| `$body.asMessageChannel` | JSON Body | boolean | 源码未声明；见业务校验 | true / false | 源码未声明默认值 | 是否作为消息通道 | `true` |
+| `$body.sipTransactionInfo` | JSON Body | object | 源码未声明；见业务校验 | JSON对象；字段见模型表 | 源码未声明默认值 | 设备注册的事务信息 | `{}` |
+| `$body.broadcastPushAfterAck` | JSON Body | boolean | 源码未声明；见业务校验 | true / false | 源码未声明默认值 | 控制语音对讲流程，释放收到ACK后发流 | `true` |
+| `$body.serverId` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 所属服务Id | `"<serverId>"` |
+| `$body.typeCode` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 国标编号中的三位类型编码（派生字段） | `"<typeCode>"` |
+| `$body.typeName` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 国标编号类型名称（派生字段） | `"<typeName>"` |
+| `$body.accessType` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 接入类型：DEVICE-独立设备，PLATFORM-下级平台（派生字段） | `"<accessType>"` |
+| `$body.accessTypeName` | JSON Body | string | 源码未声明；见业务校验 | 源码未声明格式或范围 | 源码未声明默认值 | 接入类型名称（派生字段） | `"<accessTypeName>"` |
+
+`$body`表示整个JSON值，`$body.name`表示根对象的name字段；不要发送名为$body或Java形参名的额外包装对象。
+
+#### 请求示例
+
+示例展示请求结构；尖括号值需替换，设备能力、业务必填规则与部署鉴权以实际环境为准。
+
+```http
+POST /api/device/query/device/add HTTP/1.1
+Host: <wvp-host>
+access-token: <JWT>
+Content-Type: application/json
+
+{
+  "id": 1,
+  "deviceId": "<deviceId>",
+  "name": "<name>",
+  "manufacturer": "<manufacturer>"
+}
+```
+
+#### 响应参数
+
+| 字段 | 类型 | 可空 / 出现条件 | 格式 / 取值 | 说明 | 示例 |
+|---|---|---|---|---|---|
+| `code` | integer | 统一响应时提供 | 0成功；非0失败 | 业务状态码：0 成功，非 0 失败 | `0` |
+| `msg` | string | 统一WVPResult中为非空说明 | 源码未声明格式或范围 | 结果说明；本系统实际字段为 msg | `"成功"` |
+| `data` | null | 固定null | JSON null | 无业务返回值 | `null` |
+
+#### 成功响应
+
+```json
+{
+  "code": 0,
+  "msg": "成功",
+  "data": null
+}
+```
+
+#### 错误响应
+
+```json
+{
+  "code": 100,
+  "msg": "失败：请检查具体错误说明",
+  "data": null
+}
+```
+
+#### 错误码
+
+| code | msg | 说明 |
+|---|---|---|
+| 0 | 成功 | 业务成功 |
+| 100 | 失败 | 通用业务失败，读取实际 `msg` |
+| 400 | 参数或方法错误 | 参数不合法或调用方式错误 |
+| 401 | 请登录后重新请求 | 身份失效或缺失 |
+| 403 | 无权限操作 | 当前身份权限不足 |
+| 404 | 资源未找到 | 设备、通道或记录不存在 |
+| 408 / 486 | 超时或无响应 | 等待设备或媒体服务超时 |
+| 500 | 系统异常 | 服务器内部异常；也可能返回 HTTP 500 |
+
+#### 变更记录
+
+| 版本 | 日期 | 说明 | 作者 |
+|---|---|---|---|
+| v1.0 | 2026-09-28 | 根据当前源码首次收录；具体业务规则以源码和部署配置为准 | 项目维护者（未指定个人） |
+
+---
+
+## 解析与实现约定
+
+先核对本页请求位置与Content-Type；Query/Form不能自动替换成JSON。示例只展示形状，可能省略业务字段；必填以字段表与业务说明共同判断。
+
+普通统一响应同时检查HTTP状态和code；data为null不等于失败。文件、流、兼容返回按本页响应类型解析。通用错误码表不是本接口必然返回的穷举集合。
+
+控制或配置操作即使使用GET也会改变状态；网络超时表示结果未知，重试策略见[AI对接指南](../AI对接指南.md)。源码未声明的要求应向部署方确认。
+
+## 关联模型
+
+- [Device](../models/Device-7f29a193b9b3.md)：`src/main/java/com/genersoft/iot/vmp/gb28181/bean/Device.java`

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""在唯一对外手册中生成逐路由文档及完整模型目录。
+"""生成轻量入口、逐接口文档、模型文档和机器可读路由索引。
 
 运行：python3 scripts/generate-complete-api-manual.py
-人工编写的 1-11 节不变；只重建 GENERATED_API_REFERENCE 标记之间的内容。
+人工维护 doc/api/接入指南.md、AI对接指南.md；其他输出按源码重建。
 """
 
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import re
 from collections import defaultdict
@@ -15,8 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANUAL = ROOT / "doc/第三方对接接口手册.md"
-START = "<!-- GENERATED_API_REFERENCE_START -->"
-END = "<!-- GENERATED_API_REFERENCE_END -->"
+OUT = ROOT / "doc/api"
 SPEC = importlib.util.spec_from_file_location("api_reference", ROOT / "scripts/generate-api-reference.py")
 assert SPEC and SPEC.loader
 api_reference = importlib.util.module_from_spec(SPEC)
@@ -37,7 +37,7 @@ GET_ACTION_SEGMENTS = set(re.findall(r'"([^"]+)"', ACTION_MATCH.group(1))) if AC
 
 
 def escape(value: object) -> str:
-    return str(value).replace("|", "\\|").replace("\n", " ").strip()
+    return re.sub(r"\\*\|", r"\\|", str(value)).replace("\n", " ").strip()
 
 
 def json_type(java_type: str) -> str:
@@ -99,6 +99,8 @@ def all_fields(model: tuple, registry: dict[str, list[tuple]], endpoint_path: Pa
 
 
 def example_value(name: str, typ: str):
+    if name == "presetId":
+        return "1" if json_type(typ) == "string" else 1
     if name in {"page", "pageNum"}:
         return 1
     if name in {"count", "pageSize"}:
@@ -144,7 +146,7 @@ def sample_data(java_type: str, registry: dict[str, list[tuple]], endpoint_path:
 
 def body_example(model: tuple | None, registry: dict[str, list[tuple]], endpoint_path: Path, route: str, typ: str):
     if not model:
-        return [] if json_type(typ) == "array" else {}
+        return example_value("body", typ)
     fields = all_fields(model, registry, endpoint_path)
     if route.startswith("/api/push/"):
         preferred = ["id", "app", "stream", "gbDeviceId", "gbName"] if "/update" in route else ["app", "stream", "gbDeviceId", "gbName"]
@@ -233,29 +235,108 @@ def content_type(verb: str, parameters: list[tuple]) -> str:
     return "无请求体，无须 Content-Type"
 
 
-def parameter_tables(parameters: list[tuple], endpoint_path: Path, registry: dict[str, list[tuple]], verb: str) -> list[str]:
+REQUEST_HEADER = "| 字段 | 位置 | 类型 | 必填 | 格式 / 范围 / 可选值 | 默认值 / 未传行为 | 说明 | 示例 |"
+REQUEST_DIVIDER = "|---|---|---|---|---|---|---|---|"
+RESPONSE_HEADER = "| 字段 | 类型 | 可空 / 出现条件 | 格式 / 取值 | 说明 | 示例 |"
+RESPONSE_DIVIDER = "|---|---|---|---|---|---|"
+
+
+def field_rules(name: str, typ: str, description: str, route: str = "", place: str = "") -> tuple[str, str]:
+    """Only publish source-declared constraints; do not infer limits from examples."""
+    leaf = name.rsplit(".", 1)[-1].replace("[]", "")
+    kind = typ if typ in {"string", "integer", "number", "boolean", "array", "object", "null"} else json_type(typ)
+    rules = []
+    if kind == "boolean": rules.append("true / false")
+    elif kind == "integer": rules.append("整数")
+    elif kind == "number": rules.append("数值")
+    elif kind == "array": rules.append("JSON数组；元素类型见说明")
+    elif kind == "object": rules.append("JSON对象；字段见模型表")
+    elif kind == "null": rules.append("JSON null")
+    if "yyyy-MM-dd HH:mm:ss" in description: rules.append("yyyy-MM-dd HH:mm:ss")
+    for match in re.findall(r"(?<![A-Za-z0-9])-?\d+(?:\.\d+)?\s*[–—~～-]\s*\d+(?:\.\d+)?", description):
+        bounds = re.fullmatch(r"(-?\d+(?:\.\d+)?)\s*[–—~～-]\s*(-?\d+(?:\.\d+)?)", match)
+        if bounds and float(bounds.group(1)) < float(bounds.group(2)): rules.append(match)
+    for clause in re.split(r"[；;。]", description):
+        if any(word in clause for word in ("允许", "取值", "可选值", "长度", "最多", "不能超过", "正则", "下限", "上限", "格式")):
+            rules.append(clause.strip())
+    if not rules: rules.append("源码未声明格式或范围")
+    default = "源码未声明默认值"
+    defaults = re.findall(r"(?:不传默认|默认(?:值)?[为是：: ]*)\s*([^；;，,。]+)", description)
+    if defaults: default = defaults[-1].strip()
+    if "Java初始值：" in description:
+        default = description.split("Java初始值：", 1)[1].split("；", 1)[0] + "（Java初始值；请求默认值依接口）"
+    if preset_route(route):
+        if leaf in {"presetId", "preset"}:
+            rules = ["1–255整数；0号预留"]
+            if leaf == "presetId": rules.append("兼容PresetID_1至PresetID_255")
+            if place == "response": rules = ["字符串；已知PresetID_N规范化，其他编号保留展示；控制前校验"]
+        if leaf in {"presetName", "name"} and place not in {"response", "model"}:
+            rules = ["去除首尾空白；最多128个UTF-16编码单元"]
+            default = "未传/空白：预置点+编号"
+        if leaf == "command" and route == "/api/v1/control/preset": rules = ["set / goto / remove"]
+    return "；".join(dict.fromkeys(rules)), default
+
+
+def request_row(name: str, typ: str, place: str, required: str, desc: str, route: str = "") -> str:
+    location = {"path": "Path", "query/form": "Query / Form", "JSON body": "JSON Body", "multipart": "Multipart", "header": "Header"}.get(place, place)
+    rules, default = field_rules(name, typ, desc, route, place)
+    if name == "Content-Type": rules = desc.removeprefix("请求体编码：")
+    if name in {"access-token", "api-key"}:
+        rules = "有效JWT" if name == "access-token" else "已启用的API Key"
+        default = "默认放行" if required == "否" else "未传时须提供另一种凭证"
+    if default == "源码未声明默认值" and required == "是": default = "无；必须提供"
+    if required == "未声明" and place == "query/form" and "Java初始值：" not in desc and default != "源码未声明默认值":
+        required = "否（有声明的默认值）"
+    if required == "未声明": required = "源码未声明；见业务校验"
+    sample = desc.removeprefix("请求体编码：").split("（", 1)[0] if name == "Content-Type" else example_value(name.rsplit(".", 1)[-1], typ)
+    example = json.dumps(sample, ensure_ascii=False)
+    values = [f"`{name}`", location, json_type(typ), required, rules, default, desc, f"`{example}`"]
+    return "| " + " | ".join(escape(value) for value in values) + " |"
+
+
+def response_row(field: str, typ: str, desc: str, route: str = "") -> str:
+    rules, _ = field_rules(field, typ, desc, route, "response")
+    nullable = "源码未声明可空约束；按实际响应处理"
+    example = "按接口示例"
+    if field == "code": nullable, rules, example = "统一响应时提供", "0成功；非0失败", "0"
+    elif field == "msg": nullable, example = "统一WVPResult中为非空说明", '"成功"'
+    elif typ == "null": nullable, example = "固定null", "null"
+    elif "null" in typ: nullable = "允许null；具体含义见说明"
+    elif field.endswith("presetName") and preset_route(route): nullable, example = "预置位存在时返回最终名称", '"东门入口"'
+    elif field.endswith("presetId"): example = '"1"'
+    values = [f"`{field}`", typ, nullable, rules, desc, f"`{example}`"]
+    return "| " + " | ".join(escape(value) for value in values) + " |"
+
+
+def model_row(field: str, typ: str, desc: str) -> str:
+    rules, default = field_rules(field, typ, desc, place="model")
+    example = json.dumps(example_value(field, typ), ensure_ascii=False)
+    values = [f"`{field}`", json_type(typ), f"`{typ}`", "由具体接口决定", rules, default, desc, f"`{example}`"]
+    return "| " + " | ".join(escape(value) for value in values) + " |"
+
+
+def parameter_tables(parameters: list[tuple], endpoint_path: Path, registry: dict[str, list[tuple]], verb: str, route: str = "") -> list[str]:
     lines: list[str] = []
     for heading, places in (("Path 参数", {"path"}), ("Query 参数", {"query/form"}),
                             ("Body 参数", {"JSON body", "multipart"})):
         entries = [p for p in parameters if p[2] in places]
-        lines.extend([f"#### {heading}", "", "| 参数名 | 类型 | 必填 | 说明 | 示例 |", "|---|---|---|---|---|"])
-        if not entries:
-            lines.append("| — | — | — | 无 | — |")
+        lines.extend([f"#### {heading}", "", REQUEST_HEADER, REQUEST_DIVIDER])
+        if not entries: lines.append("| — | — | — | — | — | — | 无字段 | — |")
         for name, typ, place, required, description in entries:
+            field_name = "$body" if place == "JSON body" else name
+            if place == "JSON body":
+                description += f"；整个JSON请求体，Java形参名{name}不是额外的JSON包装字段"
+            lines.append(request_row(field_name, typ, place, required, description, route))
             if place == "JSON body":
                 model = model_for(model_name(typ), endpoint_path, registry)
-                example = "[]" if json_type(typ) == "array" else "{...}"
-                lines.append(f"| `{name}` | {json_type(typ)} | {required} | {description}；模型 `{typ}` | `{example}` |")
                 if model:
                     for field, field_type, field_desc in all_fields(model, registry, endpoint_path):
-                        example = json.dumps(example_value(field, field_type), ensure_ascii=False)
-                        lines.append(f"| `{name}.{field}` | {json_type(field_type)} | 未声明 | {field_desc} | `{example}` |")
-            else:
-                ex = json.dumps(example_value(name, typ), ensure_ascii=False)
-                lines.append(f"| `{name}` | {json_type(typ)} | {required} | {description} | `{ex}` |")
+                        lines.append(request_row(f"$body.{field}", field_type, place, "未声明", field_desc, route))
         lines.append("")
         if heading == "Query 参数" and entries and verb in {"POST", "PUT", "PATCH"}:
-            lines += ["POST/PUT/PATCH 且未使用 JSON body 时，表中参数由表单或查询串绑定；示例采用表单。", ""]
+            lines += ["表中 Query / Form 字段由表单或查询串绑定；示例采用表单，不能改成 JSON body。", ""]
+        if heading == "Body 参数" and any(p[2] == "JSON body" for p in entries):
+            lines += ["`$body`表示整个JSON值，`$body.name`表示根对象的name字段；不要发送名为$body或Java形参名的额外包装对象。", ""]
     return lines
 
 
@@ -266,7 +347,7 @@ def request_example(verb: str, route: str, parameters: list[tuple], registry: di
     for name, typ, place, required, _ in parameters:
         if place != "query/form" or required == "否":
             continue
-        value = example_value(name, typ)
+        value = "goto" if route == "/api/v1/control/preset" and name == "command" else example_value(name, typ)
         value = str(value).lower() if isinstance(value, bool) else str(value)
         (query if verb == "GET" else form).append(f"{name}={value.replace(' ', '%20')}")
     if query:
@@ -292,11 +373,41 @@ def request_example(verb: str, route: str, parameters: list[tuple], registry: di
     return "\n".join(lines)
 
 
+def preset_route(route: str) -> bool:
+    return route.startswith(("/api/front-end/preset/", "/api/common/channel/front-end/preset/")) or route == "/api/v1/control/preset"
+
+
+def preset_parameters(route: str, parameters: list[tuple]) -> list[tuple]:
+    """Business validation is stricter than RequestParam(required=false) at these routes."""
+    if not preset_route(route):
+        return parameters
+    result = []
+    for name, typ, place, required, desc in parameters:
+        if name == "channelId" and place == "query/form" and route != "/api/v1/control/preset":
+            required, desc = "是", "通道数据库整数ID（CommonGBChannel.gbId），不是通道国标编号"
+        elif name == "presetId":
+            required, desc = "是", "预置位编号1–255；兼容已知PresetID_N格式；0号预留"
+        elif name == "presetName" or (route == "/api/v1/control/preset" and name == "name"):
+            required, desc = "否", "平台名称备注，最多128个UTF-16编码单元；空白或未传默认预置点+编号；不下发设备"
+        elif route == "/api/v1/control/preset":
+            if name in {"serial", "code", "command", "preset"}:
+                required = "是"
+            desc = {"serial": "设备国标编号", "code": "目标通道国标编号，不能用channel代替",
+                    "command": "set设置、goto调用、remove删除", "preset": "预置位编号1–255，0号预留",
+                    "channel": "保留兼容参数；当前没有通道序号映射，请传code"}.get(name, desc)
+        result.append((name, typ, place, required, desc))
+    return result
+
+
 def render_route(number: int, title: str, cls: str, path: Path, verb: str, route: str,
                  summary: str, return_type: str, parameters: list[tuple], registry: dict[str, list[tuple]]) -> list[str]:
+    parameters = preset_parameters(route, parameters)
+    preset = preset_route(route)
+    remark = preset and "/remark" in route
+    control = preset and (route == "/api/v1/control/preset" or any("/" + action in route for action in ("add", "call", "delete")))
     public = is_public(route)
     binary = is_binary(route, return_type, parameters)
-    raw = route.startswith(RAW_PREFIXES) or binary
+    raw = (route.startswith(RAW_PREFIXES) and "WVPResult<" not in return_type) or binary
     label = summary or route
     condition = "；需启用对应配置" if "需启用配置" in title else ""
     if "隐藏或内部接口" in title:
@@ -311,31 +422,53 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
              "| 负责人 | 仓库未指定；由对应模块维护者确认 |",
              f"| 源码位置 | `{path.relative_to(ROOT)}` / `{cls}` |",
              f"| 源码返回类型 | `{return_type}` |", "",
-             "#### 请求头", "", "| 参数名 | 类型 | 必填 | 说明 | 示例 |", "|---|---|---|---|---|"]
-    if public:
-        lines.append("| `access-token` / `api-key` | string | 否 | 默认放行；媒体 Hook 的独立鉴权由媒体服务配置 | — |")
-    else:
-        lines.append("| `access-token` 或 `api-key` | string | 是 | JWT 或服务间 API Key，二选一；权限依基本信息 | `<JWT>` |")
+             "#### 请求头", "", REQUEST_HEADER, REQUEST_DIVIDER]
+    for credential, description in (("access-token", "有效JWT；与api-key二选一；权限见基本信息"),
+                                    ("api-key", "已启用的API Key；与access-token二选一；权限见基本信息")):
+        lines.append(request_row(credential, "String", "header", "否" if public else "二选一", description))
     for name, typ, place, required, description in parameters:
         if place == "header":
-            lines.append(f"| `{name}` | {json_type(typ)} | {required} | {description} | `{json.dumps(example_value(name, typ), ensure_ascii=False)}` |")
+            lines.append(request_row(name, typ, "header", required, description, route))
     ctype = content_type(verb, parameters)
     if not ctype.startswith("无请求体"):
-        lines.append(f"| `Content-Type` | string | 是 | 请求体编码 | `{ctype.split('（')[0]}` |")
+        lines.append(request_row("Content-Type", "String", "header", "是", "请求体编码：" + ctype, route))
     lines.append("")
-    lines += parameter_tables(parameters, path, registry, verb)
+    if preset:
+        lines += ["#### 业务约定", "",
+                  "参数、名称优先级、应答语义与完整示例见[第8.2节](#82-预置位)。名称备注只保存到平台，不进入国标控制指令。", ""]
+        if control:
+            lines += ["收到设备 SIP 200 OK 后才返回 code=0；拒绝保留 SIP 状态码，SIP/跨节点应答超时返回408。设备已接收但备注保存失败返回100；不应重新设置位置，应通过修改名称接口补存。网络错误或超时后不自动重试。", ""]
+        elif remark:
+            lines += ["仅保存平台名称，不下发设备指令；成功data为最终名称，省略或留空名称恢复预置点+编号。", ""]
+        else:
+            lines += ["查询设备当前列表后合并名称：平台备注优先，否则设备名称，否则自动名称；备注不会产生设备查询中不存在的预置位。", ""]
+    lines += parameter_tables(parameters, path, registry, verb, route)
     lines += ["#### 请求示例", "", "示例展示请求结构；尖括号值需替换，设备能力、业务必填规则与部署鉴权以实际环境为准。", "",
               "```http", request_example(verb, route, parameters, registry, path, public), "```", "",
-              "#### 响应参数", "", "| 参数名 | 类型 | 说明 |", "|---|---|---|"]
+              "#### 响应参数", "", RESPONSE_HEADER, RESPONSE_DIVIDER]
     if binary:
-        lines.append("| 响应体 | binary / stream | 控制器直接写出文件或媒体内容；依 Content-Type 保存 |")
+        lines.append(response_row("响应体", "binary / stream", "控制器直接写出文件或媒体内容；依Content-Type保存"))
     elif raw and unwrap(return_type) in {"void", "Void"}:
-        lines.append("| 响应体 | empty | 成功时无业务响应体 |")
+        lines.append(response_row("响应体", "empty", "成功时无业务响应体"))
     else:
-        rows = response_fields(return_type, path, registry, not raw)
-        lines += [f"| `{field}` | {typ} | {escape(desc)} |" for field, typ, desc in rows]
+        response_type = "List<Preset>" if preset and "/query" in route else return_type
+        rows = response_fields(response_type, path, registry, not raw)
+        if control:
+            rows = [("code", "integer", "0表示设备已接收指令且平台备注操作完成；非0失败"),
+                    ("msg", "string", "实际结果或失败原因"), ("data", "null", "无业务返回值")]
+        elif remark:
+            rows = [("code", "integer", "0表示平台名称备注已保存"), ("msg", "string", "结果说明"),
+                    ("data", "string", "最终保存的名称，空白输入生成预置点+编号")]
+        elif preset:
+            rows = [(field, typ, "最终显示名称：平台备注→设备名称→自动名称" if field == "data[].presetName" else desc)
+                    for field, typ, desc in rows]
+        rows = list({field: (field, typ, desc) for field, typ, desc in rows}.values())
+        if not raw and not control and not remark:
+            rows = [(field, json_type(unwrap(response_type)) if field == "data" and typ == "object / array / primitive / null" else typ, desc)
+                    for field, typ, desc in rows]
+        lines += [response_row(field, typ, desc, route) for field, typ, desc in rows]
         if raw:
-            lines.append("| — | — | 此路由不经过统一响应包装，按对应媒体或兼容协议解析 |")
+            lines.append("| — | — | — | — | 此路由不经过统一响应包装，按对应媒体或兼容协议解析 | — |")
     lines += ["", "#### 成功响应", ""]
     if binary:
         lines += ["```http", "HTTP/1.1 200 OK", "Content-Type: <以实际响应头为准>", "", "<二进制内容>", "```", ""]
@@ -344,6 +477,12 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
     else:
         data = sample_data(return_type, registry, path)
         payload = data if raw else {"code": 0, "msg": "成功", "data": data}
+        if control:
+            payload = {"code": 0, "msg": "设备已接收预置位指令", "data": None}
+        elif remark:
+            payload = {"code": 0, "msg": "成功", "data": "预置点1"}
+        elif preset:
+            payload = {"code": 0, "msg": "成功", "data": [{"presetId": "1", "presetName": "东门入口"}]}
         lines += ["```json", json.dumps(payload, ensure_ascii=False, indent=2), "```", ""]
     lines += ["#### 错误响应", ""]
     if raw:
@@ -364,15 +503,129 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
                   "| 408 / 486 | 超时或无响应 | 等待设备或媒体服务超时 |",
                   "| 500 | 系统异常 | 服务器内部异常；也可能返回 HTTP 500 |"]
         if "/preset/" in route and any(segment in route for segment in ("/add", "/call", "/delete")):
-            lines.append("| 100 | 预置位编号必须为1-255之间的整数 | `presetId` 不在合法范围或不是纯数字 |")
+            lines.append("| 100 | 预置位编号必须为1-255之间的整数 | `presetId` 无效；已知 PresetID_N 格式兼容支持 |")
     lines += ["", "#### 变更记录", "", "| 版本 | 日期 | 说明 | 作者 |", "|---|---|---|---|",
-              f"| v1.0 | {INITIAL_VERSION_DATE} | 根据当前源码首次收录；具体业务规则以源码和部署配置为准 | 项目维护者（未指定个人） |", "", "---", ""]
+              f"| v1.0 | {'2026-10-21' if remark else INITIAL_VERSION_DATE} | 根据当前源码首次收录；具体业务规则以源码和部署配置为准 | 项目维护者（未指定个人） |"]
+    if preset and not remark:
+        lines.append("| v1.1 | 2026-10-21 | 同步平台名称备注、参数校验、SIP应答及响应示例 | 项目维护者（未指定个人） |")
+    lines += ["", "---", ""]
     return lines
 
 
+def stable_name(prefix: str, identity: str) -> str:
+    """Stable links independent of route order; disambiguate same-name Java classes."""
+    return prefix + "-" + hashlib.sha256(identity.encode()).hexdigest()[:12] + ".md"
+
+
+def generate_split_docs(groups, models, registry) -> None:
+    outputs: dict[Path, str] = {}
+
+    def save(relative: str, lines: list[str]) -> None:
+        outputs[OUT / relative] = "\n".join(lines).rstrip() + "\n"
+
+    model_files = {str(m[2]): "models/" + stable_name(m[0], str(m[2].relative_to(ROOT))) for m in models}
+    model_index = ["# 模型索引", "", "[文档入口](../第三方对接接口手册.md) · [接口索引](接口索引.md)", "",
+                   "按接口中的关联模型链接读取。模型不等同于请求DTO；必填、默认值和可空以具体接口为准。同名Java类通过源码路径区分。动态JSONObject和多态返回值可能没有固定字段。", "",
+                   "| 模型 | 说明 | 源码 |", "|---|---|---|"]
+    for model in models:
+        name, title, path, parent, _ = model
+        filename = model_files[str(path)]
+        model_index.append(f"| [{name}]({filename}) | {escape(title)} | `{path.relative_to(ROOT)}` |")
+        lines = [f"# {name}" + (f"：{title}" if title else ""), "",
+                 "[文档入口](../../第三方对接接口手册.md) · [模型索引](../模型索引.md)", "",
+                 f"源码：`{path.relative_to(ROOT)}`" + (f"；继承 `{parent}`" if parent else ""), "",
+                 "模型字段表描述可识别的源码字段，包含继承字段；请求必填由具体接口决定。Java初始值不等于请求默认值。未声明的格式、单位或可空条件不能自行推断。", "",
+                 "| 字段 | JSON类型 | Java类型 | 请求必填 / 可空 | 格式 / 范围 / 可选值 | 默认值 / 未传行为 | 说明 | 示例 |", REQUEST_DIVIDER]
+        fields = all_fields(model, registry, path)
+        lines += [model_row(field, typ, "平台最终显示名称：平台备注优先，否则设备名称，否则自动名称；不保证是设备端名称" if name == "Preset" and field == "presetName" else desc) for field, typ, desc in fields]
+        nested = set(re.findall(r"[A-Za-z_][A-Za-z_0-9]*", " ".join(typ for _, typ, _ in fields)))
+        related = [model_for(n, path, registry) for n in sorted(nested | ({parent} if parent else set()))]
+        related = [m for m in related if m and m[2] != path]
+        if related:
+            lines += ["", "## 关联模型", ""]
+            lines += [f"- [{m[0]}]({Path(model_files[str(m[2])]).name})：`{m[2].relative_to(ROOT)}`" for m in related]
+        save(filename, lines)
+    save("模型索引.md", model_index)
+
+    routes = []
+    module_rows = []
+    for title, cls, path, endpoints in groups:
+        module_filename = "modules/" + cls + ".md"
+        module_lines = [f"# {title}（{cls}）", "",
+                        "[文档入口](../../第三方对接接口手册.md) · [完整接口索引](../接口索引.md) · [AI 对接指南](../AI对接指南.md)", "",
+                        "| 方法 | 路径 | 功能 |", "|---|---|---|"]
+        module_count = 0
+        for mappings, summary, return_type, parameters in endpoints:
+            for verb, route in mappings:
+                filename = "routes/" + stable_name(verb.lower(), verb + " " + route)
+                module_lines.append(f"| `{verb}` | [{escape(route)}](../{filename}) | {escape(summary)} |")
+                lines = render_route(len(routes) + 1, title, cls, path, verb, route, summary, return_type, parameters, registry)
+                lines[0] = f"# {verb} {route}"
+                lines[1:1] = ["", f"[文档入口](../../第三方对接接口手册.md) · [所属模块](../{module_filename}) · [AI 对接指南](../AI对接指南.md)"]
+                lines = [line.replace("[第8.2节](#82-预置位)", "[接入指南第8.2节](../接入指南.md#82-预置位)") for line in lines]
+                types = set(re.findall(r"[A-Za-z_][A-Za-z_0-9]*", return_type + " " + " ".join(p[1] for p in parameters)))
+                if preset_route(route) and "/query" in route:
+                    types.add("Preset")
+                related = [model_for(n, path, registry) for n in sorted(types)]
+                related = [m for m in related if m]
+                lines += ["## 解析与实现约定", "",
+                          "先核对本页请求位置与Content-Type；Query/Form不能自动替换成JSON。示例只展示形状，可能省略业务字段；必填以字段表与业务说明共同判断。", "",
+                          "普通统一响应同时检查HTTP状态和code；data为null不等于失败。文件、流、兼容返回按本页响应类型解析。通用错误码表不是本接口必然返回的穷举集合。", "",
+                          "控制或配置操作即使使用GET也会改变状态；网络超时表示结果未知，重试策略见[AI对接指南](../AI对接指南.md)。源码未声明的要求应向部署方确认。", ""]
+                if related:
+                    lines += ["## 关联模型", ""]
+                    lines += [f"- [{m[0]}](../{model_files[str(m[2])]})：`{m[2].relative_to(ROOT)}`" for m in related]
+                save(filename, lines)
+                effective_parameters = preset_parameters(route, parameters)
+                routes.append({"method": verb, "path": route, "summary": summary, "module": cls,
+                               "document": filename, "source": str(path.relative_to(ROOT)),
+                               "authentication": auth_text(route, verb), "contentType": content_type(verb, parameters),
+                               "returnJavaType": return_type,
+                               "parameters": [{"name": n, "javaType": t, "location": loc,
+                                               "required": req, "description": desc}
+                                              for n, t, loc, req, desc in effective_parameters],
+                               "models": [model_files[str(m[2])] for m in related]})
+                module_count += 1
+        save(module_filename, module_lines)
+        module_rows.append(f"| [{escape(title)}]({module_filename}) | {module_count} | `{cls}` |")
+
+    save("接口索引.md", ["# 完整接口索引", "", "[文档入口](../第三方对接接口手册.md) · [AI 对接指南](AI对接指南.md)", "",
+                          "仅索引，不加载所有字段表。先按方法和完整路径定位，再打开一条接口详情。含内部回调、管理及可选模块；是否适合第三方调用看详情。", "",
+                          "| 方法 | 路径 | 功能 | 模块 |", "|---|---|---|---|"] +
+         [f"| `{r['method']}` | [{escape(r['path'])}]({r['document']}) | {escape(r['summary'])} | {r['module']} |" for r in routes])
+    save("模块索引.md", ["# 模块索引", "", "[文档入口](../第三方对接接口手册.md) · [完整接口索引](接口索引.md)", "",
+                          "| 模块 | 路由数 | Controller |", "|---|---:|---|"] + module_rows)
+    manifest = {"schemaVersion": 1, "description": "源码检索索引，不是OpenAPI，也不代表已经完成业务校验审计。document和models相对本JSON文件所在目录。required保留文档原始标记，不可直接当作布尔值。",
+                "entry": "../第三方对接接口手册.md", "aiGuide": "AI对接指南.md", "integrationGuide": "接入指南.md",
+                "routeCount": len(routes), "modelCount": len(models), "routes": routes,
+                "models": [{"name": m[0], "source": str(m[2].relative_to(ROOT)), "document": model_files[str(m[2])]} for m in models]}
+    outputs[OUT / "route-index.json"] = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    outputs[MANUAL] = "\n".join([
+        "# WVP-PRO 接口文档", "", "版本：2026-10-21。本文是统一入口，接口按需读取，避免一次加载全部字段表。", "",
+        f"覆盖 **{len(routes)} 条路由、{len(groups)} 个 Controller、{len(models)} 个模型**。部署地址、凭证、模块开关与可用媒体协议由部署方提供。", "",
+        "| 阅读目的 | 文档 |", "|---|---|",
+        "| AI工具开始对接 | [AI对接指南](api/AI对接指南.md)：读取顺序、标识映射、调用流程、编码与错误处理 |",
+        "| 了解业务流程 | [接入指南](api/接入指南.md)：鉴权、播放、接入、录像、云台、预置位 |",
+        "| 按业务找接口 | [模块索引](api/模块索引.md) |",
+        "| 已知方法和路径 | [完整接口索引](api/接口索引.md)：打开对应的一条接口详情 |",
+        "| 查字段和嵌套对象 | [模型索引](api/模型索引.md)：每个模型独立一页 |",
+        "| 程序检索路由 | [JSON路由索引](api/route-index.json)：定位文件，无须读全量文档 |",
+        "| 维护或离线交付 | [文档维护说明](api/维护说明.md) |", "",
+        "建议先读AI对接指南，再读一个业务流程和本次使用的接口、关联模型。整个doc/api目录应一起交付，保留相对路径。", "",
+        "原手册第1—11节已迁至[接入指南](api/接入指南.md)；第12节拆为接口详情，第13节拆为模型详情。原有HTTP接口路径不受文档拆分影响。", ""])
+    for path, content in outputs.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    # Only remove stale files from generator-owned directories, never manual guides.
+    for directory in ("routes", "models", "modules"):
+        for stale in (OUT / directory).glob("*.md"):
+            if stale not in outputs:
+                stale.unlink()
+    largest = max((len(content.encode()), path) for path, content in outputs.items() if path.suffix == ".md")
+    print(f"已生成：{len(routes)}条路由、{len(groups)}个模块、{len(models)}个模型；最大生成Markdown {largest[0]}字节（{largest[1].relative_to(ROOT)}）")
+
+
 def main() -> None:
-    original = MANUAL.read_text(encoding="utf-8")
-    assert original.count(START) == original.count(END) == 1, "找不到唯一的生成区域标记"
     groups = api_reference.parse_controllers()
     model_types: set[str] = set()
     for _, _, _, endpoints in groups:
@@ -391,35 +644,7 @@ def main() -> None:
     registry: dict[str, list[tuple]] = defaultdict(list)
     for model in models:
         registry[model[0]].append(model)
-    lines = ["", "## 12. 全系统 HTTP 接口逐项文档", "",
-             "本节依据当前仓库全部 Controller 路由生成，包含业务接口、管理接口、可选模块、内部 Hook 和兼容接口。每条按统一模板列出基本信息、请求头、Path/Query/Body、示例、响应字段、错误码和变更记录。示例数据用于展示 JSON 形状，不代表存在该设备或记录；没有源码注释的字段标为“未声明”。错误码表列出平台通用码，单个接口只会返回适用的子集。`msg` 是本系统真实字段名，不能按示例中的 `message` 解析。文件、流以及 `/api/v1/**`、`/index/hook/**` 等排除统一包装的路由在条目中单独注明。", "",
-             "负责人姓名未记录在源码中，统一标为未指定；不要将模板里的示例人名当作本项目负责人。权限根据 `WebSecurityConfig` 默认规则列示，部署方可调整放行列表。", ""]
-    lines += ["| 模块 | 路由数 | 快速跳转 |", "|---|---:|---|"]
-    for title, cls, _, endpoints in groups:
-        route_count = sum(len(mappings) for mappings, _, _, _ in endpoints)
-        lines.append(f"| {escape(title)} | {route_count} | [查看](#api-{cls}) |")
-    lines.append("")
-    count = 0
-    for title, cls, path, endpoints in groups:
-        lines += [f'<a id="api-{cls}"></a>', "", f"## {title}（{cls}）", ""]
-        for mappings, summary, return_type, parameters in endpoints:
-            for verb, route in mappings:
-                count += 1
-                lines += render_route(count, title, cls, path, verb, route, summary, return_type, parameters, registry)
-    lines += ["## 13. 完整模型字段目录", "",
-              "本节收录 Controller 请求体、返回值及其嵌套字段所涉及的可识别模型，以及源码带 `@Schema` 的模型。表中“Java 类型”保留源码原型，JSON 类型用于外部解码；继承字段也列出。接口返回的多态接口、动态 `JSONObject` 和标准库对象没有固定字段，以具体协议或运行响应为准。部分类型是内部对象，第三方只应依赖相应接口实际返回的字段。", ""]
-    for name, title, path, parent, _ in models:
-        model = (name, title, path, parent, next(m[4] for m in registry[name] if m[2] == path))
-        lines += [f"### {name}" + (f"：{title}" if title else ""), "",
-                  f"源码：`{path.relative_to(ROOT)}`" + (f"；继承 `{parent}`" if parent else ""), "",
-                  "| 字段 | JSON 类型 | Java 类型 | 说明 |", "|---|---|---|---|"]
-        fields = all_fields(model, registry, path)
-        lines += [f"| `{field}` | {json_type(typ)} | `{typ}` | {desc} |" for field, typ, desc in fields]
-        lines.append("")
-    lines += [f"逐项收录 **{count} 条路由映射、{len(groups)} 个 Controller、{len(models)} 个模型**。", ""]
-    updated = original.split(START)[0] + START + "\n" + "\n".join(lines) + END + original.split(END)[1]
-    MANUAL.write_text(updated, encoding="utf-8")
-    print(f"已更新 {MANUAL.relative_to(ROOT)}：{count} 条路由，{len(models)} 个模型")
+    generate_split_docs(groups, models, registry)
 
 
 if __name__ == "__main__":

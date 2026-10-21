@@ -2,6 +2,7 @@ package com.genersoft.iot.vmp.gb28181.controller;
 
 
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
+import com.genersoft.iot.vmp.gb28181.service.impl.PresetRemarkService;
 import com.genersoft.iot.vmp.conf.security.JwtUtils;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,6 +31,9 @@ import org.springframework.web.context.request.async.DeferredResult;
 @RestController
 @RequestMapping("/api/front-end")
 public class PtzController {
+
+    @Autowired
+    private PresetRemarkService presetRemarkService;
 
 	@Autowired
 	private SIPCommander cmder;
@@ -79,7 +84,7 @@ public class PtzController {
 	@Parameter(name = "command", description = "控制指令,允许值: left, right, up, down, upleft, upright, downleft, downright, zoomin, zoomout, stop", required = true)
 	@Parameter(name = "horizonSpeed", description = "水平速度(0-255)，不传默认100", required = false)
 	@Parameter(name = "verticalSpeed", description = "垂直速度(0-255)，不传默认100", required = false)
-	@Parameter(name = "zoomSpeed", description = "缩放速度(0-15)；建议显式传值", required = false)
+	@Parameter(name = "zoomSpeed", description = "缩放速度(0-15)，不传默认1", required = false)
 	@GetMapping("/ptz/{deviceId}/{channelId}")
 	public void ptz(@PathVariable String deviceId,@PathVariable String channelId, String command, Integer horizonSpeed, Integer verticalSpeed, Integer zoomSpeed){
 
@@ -97,12 +102,13 @@ public class PtzController {
 			throw new ControllerException(ErrorCode.ERROR100.getCode(), "verticalSpeed 为 0-255的数字");
 		}
 		if (zoomSpeed == null) {
-			zoomSpeed = 16;
+			zoomSpeed = 1;
 		}else if (zoomSpeed < 0 || zoomSpeed > 15) {
 			throw new ControllerException(ErrorCode.ERROR100.getCode(), "zoomSpeed 为 0-15的数字");
 		}
 
 		int cmdCode = 0;
+		Assert.hasText(command, "command 不能为空");
 		switch (command){
 			case "left":
 				cmdCode = 2;
@@ -140,7 +146,7 @@ public class PtzController {
 				zoomSpeed = 0;
 				break;
 			default:
-				break;
+				throw new ControllerException(ErrorCode.ERROR100.getCode(), "不支持的云台指令 command：" + command);
 		}
 		frontEndCommand(deviceId, channelId, cmdCode, horizonSpeed, verticalSpeed, zoomSpeed);
 	}
@@ -226,34 +232,65 @@ public class PtzController {
 		}
 		Device device = deviceService.getDeviceByDeviceId(deviceId);
 		Assert.notNull(device, "设备不存在");
-		DeferredResult<WVPResult<Object>> deferredResult = new DeferredResult<> (3 * 1000L);
+		DeferredResult<WVPResult<Object>> deferredResult = new DeferredResult<> (5 * 1000L);
 		deviceService.queryPreset(device, channelId, (code, msg, data) -> {
-			deferredResult.setResult(new WVPResult<>(code, msg, data));
+            try {
+                deferredResult.setResult(new WVPResult<>(code, msg, code == 0
+                        ? presetRemarkService.apply(presetRemarkService.channelId(device, channelId), data) : data));
+            } catch (RuntimeException exception) {
+                log.error("[读取预置位名称备注失败]", exception);
+                deferredResult.setResult(WVPResult.fail(100, "读取预置位名称备注失败，请稍后重试"));
+            }
 		});
 
 		deferredResult.onTimeout(()->{
 			log.warn("[获取设备预置位] 超时, {}", device.getDeviceId());
-			deferredResult.setResult(WVPResult.fail(ErrorCode.ERROR100.getCode(), "超时"));
+			deferredResult.setResult(WVPResult.fail(ErrorCode.ERROR100.getCode(), "预置位查询超时，请检查设备在线状态及是否支持预置位查询"));
 		});
 		return deferredResult;
 	}
+
+    private DeferredResult<WVPResult<String>> controlPreset(String deviceId, String channelId, int cmdCode, String presetId, String presetName) {
+        int id = PresetIdValidator.parse(presetId);
+        String name = PresetRemarkService.name(id, presetName);
+        Device device = deviceService.getDeviceByDeviceId(deviceId);
+        Assert.notNull(device, "设备不存在");
+        int sourceId = presetRemarkService.channelId(device, channelId);
+        DeferredResult<WVPResult<String>> result = new DeferredResult<>(30_000L);
+        result.onTimeout(() -> result.setResult(WVPResult.fail(408, "预置位指令应答超时，未确认设备接收")));
+        ptzService.preset(device, channelId, cmdCode, id,
+                (code, msg, data) -> result.setResult(presetRemarkService.controlResult(sourceId, cmdCode, id, name, code, msg, data)));
+        return result;
+    }
 
 	@Operation(summary = "预置位指令-设置预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
 	@Parameter(name = "channelId", description = "通道国标编号", required = true)
 	@Parameter(name = "presetId", description = "预置位编号(1-255)", required = true)
 	@GetMapping("/preset/add/{deviceId}/{channelId}")
-	public void addPreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId) {
-		frontEndCommand(deviceId, channelId, 0x81, 1, PresetIdValidator.parse(presetId), 0);
+	public DeferredResult<WVPResult<String>> addPreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId, @RequestParam(required = false) String presetName) {
+		return controlPreset(deviceId, channelId, 0x81, presetId, presetName);
 	}
+
+    @Operation(summary = "修改平台预置位名称备注（不下发设备）")
+    @PostMapping("/preset/remark/{deviceId}/{channelId}")
+    public WVPResult<String> remarkPreset(@PathVariable String deviceId, @PathVariable String channelId,
+                                         @RequestParam String presetId, @RequestParam(required = false) String presetName) {
+        int id = PresetIdValidator.parse(presetId);
+        Device device = deviceService.getDeviceByDeviceId(deviceId);
+        Assert.notNull(device, "设备不存在");
+        String name = PresetRemarkService.name(id, presetName);
+        presetRemarkService.save(presetRemarkService.channelId(device, channelId), id, name);
+        return WVPResult.success(name);
+    }
 
 	@Operation(summary = "预置位指令-调用预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
 	@Parameter(name = "channelId", description = "通道国标编号", required = true)
 	@Parameter(name = "presetId", description = "预置位编号(1-255)", required = true)
 	@GetMapping("/preset/call/{deviceId}/{channelId}")
-	public void callPreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId) {
-		frontEndCommand(deviceId, channelId, 0x82, 1, PresetIdValidator.parse(presetId), 0);
+	public DeferredResult<WVPResult<String>> callPreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId) {
+		return controlPreset(deviceId, channelId, 0x82, presetId, null);
 	}
 
 	@Operation(summary = "预置位指令-删除预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
@@ -261,8 +298,8 @@ public class PtzController {
 	@Parameter(name = "channelId", description = "通道国标编号", required = true)
 	@Parameter(name = "presetId", description = "预置位编号(1-255)", required = true)
 	@GetMapping("/preset/delete/{deviceId}/{channelId}")
-	public void deletePreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId) {
-		frontEndCommand(deviceId, channelId, 0x83, 1, PresetIdValidator.parse(presetId), 0);
+	public DeferredResult<WVPResult<String>> deletePreset(@PathVariable String deviceId, @PathVariable String channelId, @RequestParam(value = "presetId", required = false) String presetId) {
+		return controlPreset(deviceId, channelId, 0x83, presetId, null);
 	}
 
 	@Operation(summary = "巡航指令-加入巡航点", security = @SecurityRequirement(name = JwtUtils.HEADER))

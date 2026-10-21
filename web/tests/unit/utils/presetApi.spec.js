@@ -17,6 +17,22 @@ describe('preset controls', () => {
       expect(request.mock.calls[request.mock.calls.length - 1][0].params.presetId).toBe(5)
     }
     expect(request).toHaveBeenCalledTimes(6)
+    request.mock.calls.forEach(([config]) => expect(config.retryOnNetworkError).toBe(false))
+  })
+
+  it('submits optional platform names and edits names without invoking preset control', async() => {
+    await deviceApi.addPreset(['device', 'channel', 5, '东门入口'])
+    expect(request.mock.calls[0][0].params.presetName).toBe('东门入口')
+    await channelApi.addPreset({ channelId: 123, presetId: 5, presetName: '路口北侧' })
+    expect(request.mock.calls[1][0].params.presetName).toBe('路口北侧')
+    await deviceStore.actions.setPresetRemark({}, ['device', 'channel', 5, '大门'])
+    expect(request.mock.calls[2][0]).toEqual({
+      method: 'post', url: '/api/front-end/preset/remark/device/channel', params: { presetId: 5, presetName: '大门' }
+    })
+    await channelStore.actions.setPresetRemark({}, { channelId: 123, presetId: 5, presetName: '' })
+    expect(request.mock.calls[3][0]).toEqual({
+      method: 'post', url: '/api/common/channel/front-end/preset/remark', params: { channelId: 123, presetId: 5, presetName: '' }
+    })
   })
 
   it('blocks malformed or out of range IDs before sending a control request', async() => {

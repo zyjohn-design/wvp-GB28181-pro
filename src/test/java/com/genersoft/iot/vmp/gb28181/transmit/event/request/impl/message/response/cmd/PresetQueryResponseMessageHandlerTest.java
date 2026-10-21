@@ -2,6 +2,7 @@ package com.genersoft.iot.vmp.gb28181.transmit.event.request.impl.message.respon
 
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.bean.Preset;
+import com.genersoft.iot.vmp.gb28181.bean.MessageResponseTask;
 import com.genersoft.iot.vmp.gb28181.transmit.event.request.impl.message.response.ResponseMessageHandler;
 import gov.nist.javax.sip.message.SIPRequest;
 import org.dom4j.DocumentHelper;
@@ -13,11 +14,49 @@ import org.springframework.test.util.ReflectionTestUtils;
 import javax.sip.RequestEvent;
 import javax.sip.message.Response;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.DelayQueue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 class PresetQueryResponseMessageHandlerTest {
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void onlyPublishesCompleteSnapshotsIncludingEmptySnapshots() {
+        PresetQueryResponseMessageHandler handler = new PresetQueryResponseMessageHandler();
+        ResponseMessageHandler responses = mock(ResponseMessageHandler.class);
+        ReflectionTestUtils.setField(handler, "responseMessageHandler", responses);
+        Element root = DocumentHelper.createElement("Response");
+        Preset first = new Preset();
+        first.setPresetId("1");
+        Preset second = new Preset();
+        second.setPresetId("2");
+        ReflectionTestUtils.invokeMethod(handler, "addCatch", "partial", 2, root, new java.util.ArrayList<>(List.of(first)));
+        verifyNoInteractions(responses);
+        handler.expirationCheck();
+        verifyNoInteractions(responses);
+        ReflectionTestUtils.invokeMethod(handler, "addCatch", "partial", 2, root, List.of(second));
+        verify(responses).handMessageEvent(root, List.of(first, second));
+        ReflectionTestUtils.invokeMethod(handler, "addCatch", "empty", 0, root, List.of());
+        verify(responses).handMessageEvent(root, List.of());
+
+        clearInvocations(responses);
+        ReflectionTestUtils.invokeMethod(handler, "addCatch", "expired", 2, root, List.of(first));
+        Map<String, MessageResponseTask<Preset>> tasks =
+                (Map<String, MessageResponseTask<Preset>>) ReflectionTestUtils.getField(handler, "mesageMap");
+        DelayQueue<MessageResponseTask<Preset>> queue =
+                (DelayQueue<MessageResponseTask<Preset>>) ReflectionTestUtils.getField(handler, "delayQueue");
+        MessageResponseTask<Preset> task = tasks.get("expired");
+        queue.remove(task);
+        task.setDelayTime(System.currentTimeMillis() - 1);
+        queue.offer(task);
+        handler.expirationCheck();
+        verifyNoInteractions(responses);
+        assertEquals(0, tasks.size());
+        assertEquals(0, queue.size());
+    }
 
     @Test
     @SuppressWarnings("unchecked")

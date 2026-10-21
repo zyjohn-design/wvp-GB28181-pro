@@ -27,6 +27,18 @@ public class WVPResult<T> implements Cloneable{
     @Schema(description = "数据")
     private T data;
 
+    public String getMsg() {
+        if (msg != null && !msg.trim().isEmpty()) {
+            return msg;
+        }
+        for (ErrorCode errorCode : ErrorCode.values()) {
+            if (errorCode.getCode() == code) {
+                return errorCode.getMsg();
+            }
+        }
+        return "请求失败，错误码：" + code;
+    }
+
 
     public static <T> WVPResult<T> success(T t, String msg) {
         return new WVPResult<>(ErrorCode.SUCCESS.getCode(), msg, t);

@@ -1,7 +1,7 @@
 import { normalizePresetList } from '@/utils/presetId'
 import {
   addPointForCruise, addPreset, auxiliary, callPreset, deletePointForCruise, deletePreset, focus, iris, ptz,
-  queryPreset, setCruiseSpeed, setCruiseTime,
+  setPresetRemark, queryPreset, setCruiseSpeed, setCruiseTime,
   setLeftForScan,
   setRightForScan,
   setSpeedForScan, startCruise,
@@ -120,6 +120,9 @@ const actions = {
         reject(error)
       })
     })
+  },
+  setPresetRemark(context, params) {
+    return setPresetRemark(params).then(response => response.data)
   },
   addPreset({ commit }, params) {
     return new Promise((resolve, reject) => {

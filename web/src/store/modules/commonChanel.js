@@ -32,6 +32,7 @@ import {
   focus,
   iris,
   ptz,
+  setPresetRemark,
   queryPreset,
   setCruiseSpeed,
   setCruiseTime,
@@ -445,6 +446,9 @@ const actions = {
         reject(error)
       })
     })
+  },
+  setPresetRemark(context, params) {
+    return setPresetRemark(params).then(response => response.data)
   },
   addPreset({ commit }, params) {
     return new Promise((resolve, reject) => {

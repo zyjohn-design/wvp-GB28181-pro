@@ -24,6 +24,7 @@ service.interceptors.request.use(
   error => {
     // do something with request error
     console.log(error) // for debug
+    Message.error({ message: error.message || '请求创建失败，请稍后重试', showClose: true })
     return Promise.reject(error)
   }
 )
@@ -41,12 +42,11 @@ service.interceptors.response.use(
    * You can also judge the status by HTTP Status Code
    */
   response => {
-    if (response.config.url.indexOf('/api/user/logout') >= 0) {
-      return
-    }
     const res = response.data
     if (res.code && res.code !== 0) {
-      throw res.msg
+      const message = (typeof res.msg === 'string' && res.msg.trim()) || `请求失败，错误码：${res.code}`
+      Message.error({ message, showClose: true })
+      return Promise.reject(message)
     } else {
       return res
     }
@@ -57,7 +57,7 @@ service.interceptors.response.use(
     const config = error.config
     // 部分专网防火墙会重置已复用的空闲 TCP 连接。GET 是幂等请求，遇到没有
     // HTTP 响应的网络错误时仅重试一次；写请求不重试，避免重复提交。
-    if (!response && config && config.method === 'get' && !config.__networkRetried) {
+    if (!response && config && config.method === 'get' && config.retryOnNetworkError !== false && !config.__networkRetried) {
       config.__networkRetried = true
       return new Promise(resolve => setTimeout(resolve, 200))
         .then(() => service(config))
@@ -83,20 +83,19 @@ service.interceptors.response.use(
           // 清除token， 后续请求不再继续
 
         })
+      } else if (!store.getters.showConfirmBoxForLoginLose) {
+        Message.error({ message: '登录已失效，请重新登录', showClose: true })
       }
     } else {
-      if (!store.getters.showConfirmBoxForLoginLose) {
-        return Promise.reject(error)
-      }
       const data = response && response.data
-      if (data && data.msg) {
+      if (data && typeof data.msg === 'string' && data.msg.trim()) {
         Message.error({
           message: data.msg,
           showClose: true
         })
       }else {
         Message.error({
-          message: error.message,
+          message: (error.code === 'ECONNABORTED' ? '请求超时，请稍后重试' : error.message) || '网络连接失败，请检查网络后重试',
           showClose: true
         })
       }

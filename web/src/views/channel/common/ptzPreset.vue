@@ -38,7 +38,7 @@ export default {
         .then(() => {
           this.$message({
             showClose: true,
-            message: '调用成功',
+            message: '设备已接收预置位调用指令',
             type: 'success'
           })
         }).catch((error) => {

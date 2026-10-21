@@ -306,6 +306,34 @@ public class RedisRpcChannelPlayController extends RpcController {
         return null;
     }
 
+    /** 预置位控制：收到设备 SIP 应答后再返回 RPC 结果。 */
+    @RedisRpcMapping("ptz/preset")
+    public RedisRpcResponse preset(RedisRpcRequest request) {
+        JSONObject params = JSONObject.parseObject(request.getParam().toString());
+        Integer channelId = params.getInteger("channelId");
+        Integer cmdCode = params.getInteger("cmdCode");
+        Integer presetId = params.getInteger("presetId");
+        RedisRpcResponse response = request.getResponse();
+        if (channelId == null || channelId <= 0 || cmdCode == null || cmdCode < 0x81 || cmdCode > 0x83
+                || presetId == null || presetId < 1 || presetId > 255) {
+            response.setStatusCode(ErrorCode.ERROR400.getCode());
+            response.setBody("预置位指令参数无效");
+            return response;
+        }
+        CommonGBChannel channel = channelService.getOne(channelId);
+        if (channel == null) {
+            response.setStatusCode(ErrorCode.ERROR404.getCode());
+            response.setBody("通道不存在");
+            return response;
+        }
+        iptzService.preset(channel, cmdCode, presetId, (code, msg, data) -> {
+            response.setStatusCode(code);
+            response.setBody(msg);
+            sendResponse(response);
+        });
+        return null;
+    }
+
     /**
      * 云台控制
      */

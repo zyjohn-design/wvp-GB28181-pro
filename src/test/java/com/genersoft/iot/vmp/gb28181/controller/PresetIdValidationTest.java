@@ -10,6 +10,8 @@ import com.genersoft.iot.vmp.gb28181.service.IGbChannelControlService;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
 import com.genersoft.iot.vmp.gb28181.service.IPTZService;
 import org.junit.jupiter.api.Test;
+import com.genersoft.iot.vmp.gb28181.service.impl.PresetRemarkService;
+import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -63,6 +65,7 @@ class PresetIdValidationTest {
     @Test
     void sendsTheSameNumericCommandForQueriedAliasAndOriginalId() throws Exception {
         PtzController controller = new PtzController();
+        ReflectionTestUtils.setField(controller, "presetRemarkService", mock(PresetRemarkService.class));
         IDeviceService devices = mock(IDeviceService.class);
         IPTZService ptz = mock(IPTZService.class);
         Device device = new Device();
@@ -75,9 +78,9 @@ class PresetIdValidationTest {
         for (int i = 0; i < actions.length; i++) {
             for (String id : new String[]{"5", "PresetID_5"}) {
                 mvc.perform(get("/api/front-end/preset/" + actions[i] + "/device/channel")
-                                .param("presetId", id)).andExpect(status().isOk());
+                                .param("presetId", id)).andExpect(request().asyncStarted());
             }
-            verify(ptz, times(2)).frontEndCommand(device, "channel", 0x81 + i, 1, 5, 0);
+            verify(ptz, times(2)).preset(eq(device), eq("channel"), eq(0x81 + i), eq(5), any());
         }
     }
 
