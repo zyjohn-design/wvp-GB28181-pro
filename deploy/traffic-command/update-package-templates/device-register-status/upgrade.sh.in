@@ -9,6 +9,14 @@ BACKEND_RELEASE='__BACKEND_RELEASE__'
 WEB_RELEASE='__WEB_RELEASE__'
 BACKEND_BACKUP='__BACKEND_BACKUP__'
 WEB_BACKUP='__WEB_BACKUP__'
+READY_ATTEMPTS=${WVP_UPDATE_READY_ATTEMPTS:-60}
+case "$READY_ATTEMPTS" in
+    ''|*[!0-9]*) echo '错误：WVP_UPDATE_READY_ATTEMPTS必须为2至180的整数。' >&2; exit 1 ;;
+esac
+if [ "$READY_ATTEMPTS" -lt 2 ] || [ "$READY_ATTEMPTS" -gt 180 ]; then
+    echo '错误：WVP_UPDATE_READY_ATTEMPTS必须为2至180的整数。' >&2
+    exit 1
+fi
 
 "$SCRIPT_DIR/verify.sh"
 . "$SCRIPT_DIR/update-common.sh"
@@ -52,19 +60,33 @@ docker tag "$WEB_RELEASE" "$WEB_CURRENT"
 ./compose.sh up -d --no-deps --force-recreate polaris-wvp polaris-wvp-web
 
 attempt=0
-while [ "$attempt" -lt 30 ]; do
+ready_count=0
+echo '等待后台完成启动恢复，并通过前端Nginx检查就绪接口...'
+while [ "$attempt" -lt "$READY_ATTEMPTS" ]; do
     backend_id=$(./compose.sh ps -q polaris-wvp)
     web_id=$(./compose.sh ps -q polaris-wvp-web)
     if [ -n "$backend_id" ] && [ -n "$web_id" ] && \
-       [ "$(docker inspect -f '{{.State.Running}}' "$backend_id")" = 'true' ] && \
-       [ "$(docker inspect -f '{{.State.Running}}' "$web_id")" = 'true' ]; then
-        ./compose.sh ps polaris-wvp polaris-wvp-web
-        echo '增量升级完成。现场 .env、数据库和业务数据均未修改。'
-        exit 0
+       [ "$(docker inspect -f '{{.State.Running}}' "$backend_id" 2>/dev/null || true)" = 'true' ] && \
+       [ "$(docker inspect -f '{{.State.Running}}' "$web_id" 2>/dev/null || true)" = 'true' ]; then
+        ready_response=$(docker exec "$web_id" sh -c \
+            'wget -q -T 3 -O - http://127.0.0.1:8080/api/server/health/ready' 2>/dev/null || true)
+        if [ "$ready_response" = '{"status":"UP"}' ]; then
+            ready_count=$((ready_count + 1))
+            if [ "$ready_count" -ge 2 ]; then
+                ./compose.sh ps polaris-wvp polaris-wvp-web
+                echo '增量升级完成。前后端就绪检查通过。现场 .env、数据库和业务数据均未修改。'
+                exit 0
+            fi
+        else
+            ready_count=0
+        fi
+    else
+        ready_count=0
     fi
     attempt=$((attempt + 1))
     sleep 2
 done
 ./compose.sh ps polaris-wvp polaris-wvp-web
-echo '错误：容器未在60秒内全部进入 running；请检查日志或执行 rollback.sh。' >&2
+./compose.sh logs --no-color --tail 200 polaris-wvp polaris-wvp-web || true
+echo '错误：前后端就绪检查未通过，不能确认升级成功。请检查启动日志或执行 rollback.sh。' >&2
 exit 1

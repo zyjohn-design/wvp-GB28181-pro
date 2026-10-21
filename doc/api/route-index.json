@@ -4,7 +4,7 @@
   "entry": "../第三方对接接口手册.md",
   "aiGuide": "AI对接指南.md",
   "integrationGuide": "接入指南.md",
-  "routeCount": 412,
+  "routeCount": 413,
   "modelCount": 172,
   "routes": [
     {
@@ -11197,6 +11197,20 @@
           "description": "整个过程的唯一标识，不传则使用随机端口发流"
         }
       ],
+      "models": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/server/health/ready",
+      "summary": "服务就绪检查：启动恢复完成返回200，否则503；无需认证",
+      "module": "ReadinessController",
+      "document": "routes/get-bdd568c7b779.md",
+      "moduleDocument": "modules/ReadinessController.md#route-get-bdd568c7b779",
+      "source": "src/main/java/com/genersoft/iot/vmp/vmanager/server/ReadinessController.java",
+      "authentication": "默认放行",
+      "contentType": "无请求体，无须 Content-Type",
+      "returnJavaType": "ResponseEntity<Map<String, String>>",
+      "parameters": [],
       "models": []
     },
     {

@@ -23,6 +23,7 @@ api_reference = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(api_reference)
 
 PUBLIC_EXCLUDES = (
+    "/api/server/health/ready",
     "/api/user/login", "/index/hook/", "/api/device/query/snap/",
     "/api/alarm/snap/", "/api/jt1078/playback/download",
     "/api/jt1078/snap", "/api/emit",
@@ -407,7 +408,8 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
     control = preset and (route == "/api/v1/control/preset" or any("/" + action in route for action in ("add", "call", "delete")))
     public = is_public(route)
     binary = is_binary(route, return_type, parameters)
-    raw = (route.startswith(RAW_PREFIXES) and "WVPResult<" not in return_type) or binary
+    readiness = route == "/api/server/health/ready"
+    raw = readiness or (route.startswith(RAW_PREFIXES) and "WVPResult<" not in return_type) or binary
     label = summary or route
     condition = "；需启用对应配置" if "需启用配置" in title else ""
     if "隐藏或内部接口" in title:
@@ -453,6 +455,8 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
     else:
         response_type = "List<Preset>" if preset and "/query" in route else return_type
         rows = response_fields(response_type, path, registry, not raw)
+        if readiness:
+            rows = [("status", "string", "UP表示已完成启动恢复；NOT_READY表示尚未就绪或正在关闭；HTTP状态分别为200和503")]
         if control:
             rows = [("code", "integer", "0表示设备已接收指令且平台备注操作完成；非0失败"),
                     ("msg", "string", "实际结果或失败原因"), ("data", "null", "无业务返回值")]
@@ -476,6 +480,8 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
         lines += ["```http", "HTTP/1.1 200 OK", "", "<空响应体>", "```", ""]
     else:
         data = sample_data(return_type, registry, path)
+        if readiness:
+            data = {"status": "UP"}
         payload = data if raw else {"code": 0, "msg": "成功", "data": data}
         if control:
             payload = {"code": 0, "msg": "设备已接收预置位指令", "data": None}
@@ -485,12 +491,16 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
             payload = {"code": 0, "msg": "成功", "data": [{"presetId": "1", "presetName": "东门入口"}]}
         lines += ["```json", json.dumps(payload, ensure_ascii=False, indent=2), "```", ""]
     lines += ["#### 错误响应", ""]
-    if raw:
+    if readiness:
+        lines += ["```http", "HTTP/1.1 503 Service Unavailable", "Content-Type: application/json", "", '{"status":"NOT_READY"}', "```", ""]
+    elif raw:
         lines += ["```http", "HTTP/1.1 4xx/5xx", "Content-Type: <以实际响应头为准>", "", "<格式由该兼容协议或媒体服务决定>", "```", ""]
     else:
         lines += ["```json", json.dumps({"code": 100, "msg": "失败：请检查具体错误说明", "data": None}, ensure_ascii=False, indent=2), "```", ""]
     lines += ["#### 错误码", "", "| code | msg | 说明 |", "|---|---|---|"]
-    if raw:
+    if readiness:
+        lines += ["| HTTP 200 | UP | 全部启动恢复任务完成，可接收请求 |", "| HTTP 503 | NOT_READY | 尚未就绪或正在关闭；连接失败同样不能视为就绪 |"]
+    elif raw:
         lines += ["| HTTP 2xx | — | 成功；业务体格式依接口协议 |",
                   "| HTTP 4xx | — | 参数、鉴权或资源错误，按响应体处理 |",
                   "| HTTP 5xx | — | 服务端或媒体服务异常 |"]

@@ -18,6 +18,15 @@ class SSRCFactoryTest {
     private static final String DOMAIN_PART = "20000";
     private static final String SERVER_ID = "test-server";
 
+    @Test
+    void contextShutdownStopsRebuildScheduler() {
+        SSRCFactory factory = new SSRCFactory();
+        java.util.concurrent.ScheduledExecutorService scheduler =
+                (java.util.concurrent.ScheduledExecutorService) ReflectionTestUtils.getField(factory, "scheduler");
+        factory.destroy();
+        assertTrue(scheduler.isShutdown());
+    }
+
     @BeforeEach
     void setUp() throws Exception {
         ssrcFactory = new SSRCFactory();

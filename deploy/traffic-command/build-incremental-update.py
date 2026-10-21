@@ -104,9 +104,13 @@ def main():
     require(upgrade_tests and re.search(r'^OK$', upgrade_log, re.M), '升级回滚测试未通过')
     with zipfile.ZipFile(jar) as archive:
         for relative in ['db/preset-remark.sql', 'com/genersoft/iot/vmp/conf/PresetRemarkSchema.class',
-                         'com/genersoft/iot/vmp/gb28181/service/impl/PresetRemarkService.class']:
+                         'com/genersoft/iot/vmp/gb28181/service/impl/PresetRemarkService.class',
+                         'com/genersoft/iot/vmp/gb28181/task/deviceSubscribe/SubscribeTaskRunner.class',
+                         'com/genersoft/iot/vmp/vmanager/server/ReadinessController.class']:
             require(archive.read('BOOT-INF/classes/' + relative) == (ROOT / 'target/classes' / relative).read_bytes(), 'JAR内容不一致：' + relative)
         require(archive.read('BOOT-INF/classes/static/index.html') == (static / 'index.html').read_bytes(), 'JAR内前端不同步')
+        for relative in ['map-entry/arcgis.html', 'map-entry/arcgis-dark.html', 'map-bootstrap.js']:
+            require(archive.read('BOOT-INF/classes/static/' + relative) == (static / relative).read_bytes(), 'JAR内地图资源不同步：' + relative)
         properties = archive.read('BOOT-INF/classes/git.properties').decode()
         require(re.search(r'^git\.commit\.id(?:\.full)?=' + re.escape(commit) + r'$', properties, re.M), 'JAR提交号不一致')
 
@@ -142,6 +146,7 @@ def main():
                 text = text.replace(key, value)
             require(not re.search(r'__[A-Z_]+__', text), '模板仍有未填占位符')
             text = text.replace('database_migration=none', 'database_migration=auto_create_wvp_preset_remark_if_missing')
+            text = text.replace('configuration_change=none', 'configuration_change=backup_and_update_known_nginx_template_only')
             text = text.replace('现场 .env、数据库和业务数据均未修改。', '现场.env保留；后端首次启动会在缺表时创建wvp_preset_remark。')
             (package / template.removesuffix('.in')).write_text(text)
         for filename in ['verify.sh', 'update-common.sh']:
@@ -154,6 +159,8 @@ def main():
                       'frontend_tests_passed': frontend['numPassedTests'],
                       'simulated_upgrade_rollback_tests_passed': int(upgrade_tests.group(1)),
                       'linux_runtime_tested': False, 'native_images_included': False}
+        redis_report = ROOT / 'target/surefire-reports/TEST-com.genersoft.iot.vmp.gb28181.task.deviceSubscribe.SubscribeTaskRunnerRedisTest.xml'
+        build_info['real_redis_subscription_regression_tested'] = redis_report.exists() and int(ET.parse(redis_report).getroot().get('skipped', '0')) == 0
         (package / 'BUILD_INFO.json').write_text(json.dumps(build_info, ensure_ascii=False, indent=2) + '\n')
         (package / 'README.md').write_text(f'''# WVP 前后端增量更新包
 
@@ -163,6 +170,8 @@ def main():
 预置位列表同步、云台参数与错误提示修复，以及可点击跳转的完整接口文档。
 本次新增：点播在途状态超时清理与重试、停止点播的状态释放；电子地图加载失败恢复、
 底图与点位分别重试、地图入口缓存修复，以及设备点位 Canvas 批量绘制与拖动跟随优化。
+本包还修复2026-10-21现场启动失败：设备订阅恢复中的0秒Redis TTL改用毫秒精度，
+过滤已失效缓存，保留设备订阅周期；修复报警续订回调，关闭时停止SSRC重建线程。
 文档入口：docs/第三方对接接口手册.md，docs/api目录需一起保留。
 
 ## 适用环境与前置条件
@@ -211,7 +220,10 @@ cd {name}
 
 保留升级前镜像以及部署目录.wvp-updates/{release_id}-{arch}/，回滚依赖这些记录。
 回滚同时恢复升级前 Nginx 模板。不要删除该目录和备份镜像。
-脚本检查容器running不等同于业务健康；仍需执行上述现场验收。
+升级脚本通过前端Nginx请求GET /api/server/health/ready，等待后台全部启动恢复任务完成，
+连续两次返回HTTP 200与{{"status":"UP"}}后才报告成功；失败打印日志并退出非零状态。
+仍需执行上述播放、云台和地图业务验收。失败后可在本包目录执行rollback.sh，
+若升级前已经处于故障版本，回滚只会恢复该故障版本，须用更早正常版本的包继续回滚。
 
 ## 校验范围
 

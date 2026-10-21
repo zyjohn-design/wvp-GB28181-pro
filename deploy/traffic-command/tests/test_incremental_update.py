@@ -49,6 +49,7 @@ class IncrementalUpdateTest(unittest.TestCase):
         shutil.copyfile(TEMPLATES / 'update-common.sh', self.package / 'update-common.sh')
         self.executable(self.package / 'verify.sh', '#!/bin/sh\nexit 0\n')
         self.executable(self.bin / 'uname', '#!/bin/sh\necho x86_64\n')
+        self.executable(self.bin / 'sleep', '#!/bin/sh\nexit 0\n')
         self.executable(self.deploy / 'compose.sh', '''#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -71,11 +72,19 @@ elif args[0]=='build':
     if os.environ.get('FAIL_WEB_BUILD') and target=='local/web:release': sys.exit(1)
     images[target]=['built-'+target, 'linux/amd64']
 elif args[0]=='inspect': print('true')
+elif args[0]=='exec':
+    count_path=Path(os.environ['MOCK_LOG']+'.probes')
+    count=int(count_path.read_text())+1 if count_path.exists() else 1
+    count_path.write_text(str(count))
+    mode=os.environ.get('READINESS_MODE', 'ready')
+    if mode=='failed' or (mode=='delayed' and count==1) or (mode=='unstable' and count%2==0): sys.exit(1)
+    if mode=='html': print('<html>old Vue index fallback</html>')
+    else: print('{"status":"UP"}')
 else: sys.exit(2)
 path.write_text(json.dumps(images))
 ''')
         self.env = {**os.environ, 'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
-                    'MOCK_IMAGES': str(self.images), 'MOCK_LOG': str(self.log)}
+                    'MOCK_IMAGES': str(self.images), 'MOCK_LOG': str(self.log), 'WVP_UPDATE_READY_ATTEMPTS': '4'}
 
     @staticmethod
     def executable(path, content):
@@ -178,6 +187,38 @@ path.write_text(json.dumps(images))
         before = self.images.read_bytes()
         self.run_script('rollback', False)
         self.assertEqual(self.images.read_bytes(), before)
+
+    def test_running_containers_with_failed_backend_do_not_report_success(self):
+        self.env['READINESS_MODE'] = 'failed'
+        result = self.run_script('upgrade', False)
+        self.assertNotIn('增量升级完成', result.stdout)
+        self.assertIn('就绪检查未通过', result.stderr)
+        self.assertTrue(any(c[1] == 'logs' for c in self.commands()))
+
+    def test_delayed_startup_waits_for_two_successful_checks(self):
+        self.env['READINESS_MODE'] = 'delayed'
+        self.run_script('upgrade')
+        probes = [c for c in self.commands() if c[1] == 'exec']
+        self.assertEqual(len(probes), 3)
+        self.assertTrue(all('/api/server/health/ready' in c[-1] for c in probes))
+
+    def test_frontend_html_fallback_is_not_readiness(self):
+        self.env['READINESS_MODE'] = 'html'
+        result = self.run_script('upgrade', False)
+        self.assertNotIn('增量升级完成', result.stdout)
+
+    def test_unstable_readiness_is_not_success(self):
+        self.env['READINESS_MODE'] = 'unstable'
+        self.run_script('upgrade', False)
+
+    def test_failed_readiness_can_still_rollback(self):
+        self.env['READINESS_MODE'] = 'failed'
+        self.run_script('upgrade', False)
+        self.run_script('rollback')
+        images = json.loads(self.images.read_text())
+        self.assertEqual(images[self.backend][0], 'original-backend')
+        self.assertEqual(images[self.web][0], 'original-web')
+        self.assertEqual(self.nginx.read_text(), self.nginx_before)
 
 
 if __name__ == '__main__':

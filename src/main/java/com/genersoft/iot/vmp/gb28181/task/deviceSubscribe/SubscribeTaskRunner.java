@@ -36,30 +36,36 @@ public class SubscribeTaskRunner{
     // 订阅过期检查
     @Scheduled(fixedDelay = 500, timeUnit = TimeUnit.MILLISECONDS)
     public void expirationCheck(){
-        while (!delayQueue.isEmpty()) {
-            SubscribeTask take = null;
+        SubscribeTask take;
+        while ((take = delayQueue.poll()) != null) {
             try {
-                take = delayQueue.take();
-                try {
+                if (subscribes.get(take.getKey()) == take) {
                     removeSubscribe(take.getKey());
                     take.expired();
-                }catch (Exception e) {
-                    log.error("[设备订阅到期] {} 到期处理时出现异常， 设备编号: {} ", take.getName(), take.getDeviceId());
                 }
-            } catch (InterruptedException e) {
-                log.error("[设备订阅任务] ", e);
+            } catch (Exception e) {
+                log.error("[设备订阅到期] {} 到期处理时出现异常，设备编号: {}", take.getName(), take.getDeviceId(), e);
             }
         }
     }
 
+    long currentTimeMillis() {
+        return System.currentTimeMillis();
+    }
+
     public void addSubscribe(SubscribeTask task) {
-        Duration duration = Duration.ofSeconds((task.getDelayTime() - System.currentTimeMillis())/1000);
-        if (duration.getSeconds() < 0) {
+        long remainingMillis = task.getDelayTime() - currentTimeMillis();
+        if (remainingMillis <= 0) {
+            log.debug("[设备订阅恢复] 跳过已过期任务，key: {}", task.getKey());
             return;
         }
-        subscribes.put(task.getKey(), task);
         String key = String.format("%s_%s_%s", prefix, userSetting.getServerId(), task.getKey());
-        redisTemplate.opsForValue().set(key, task.getInfo(), duration);
+        // 订阅提前500ms续期，剩余不足1秒仍是有效任务，不能截断成Redis不接受的0秒TTL。
+        redisTemplate.opsForValue().set(key, task.getInfo(), Duration.ofMillis(remainingMillis));
+        SubscribeTask previous = subscribes.put(task.getKey(), task);
+        if (previous != null) {
+            delayQueue.remove(previous);
+        }
         delayQueue.offer(task);
     }
 
@@ -93,13 +99,17 @@ public class SubscribeTaskRunner{
         if (task == null) {
             return false;
         }
+        long remainingMillis = expirationTime - currentTimeMillis();
+        if (remainingMillis <= 0) {
+            removeSubscribe(key);
+            return false;
+        }
         log.info("[更新订阅任务时间] {}, 编号： {}", task.getName(), key);
+        String redisKey = String.format("%s_%s_%s", prefix, userSetting.getServerId(), task.getKey());
+        redisTemplate.expire(redisKey, Duration.ofMillis(remainingMillis));
         delayQueue.remove(task);
         task.setDelayTime(expirationTime);
         delayQueue.offer(task);
-        String redisKey = String.format("%s_%s_%s", prefix, userSetting.getServerId(), task.getKey());
-        Duration duration = Duration.ofSeconds((expirationTime - System.currentTimeMillis())/1000);
-        redisTemplate.expire(redisKey, duration);
         return true;
     }
 
@@ -116,11 +126,16 @@ public class SubscribeTaskRunner{
         List<SubscribeTaskInfo> result = new ArrayList<>();
         for (Object value : values) {
             String redisKey = (String)value;
-            SubscribeTaskInfo taskInfo = (SubscribeTaskInfo)redisTemplate.opsForValue().get(redisKey);
-            if (taskInfo == null) {
+            Object cached = redisTemplate.opsForValue().get(redisKey);
+            if (!(cached instanceof SubscribeTaskInfo taskInfo)) {
                 continue;
             }
             Long expire = redisTemplate.getExpire(redisKey, TimeUnit.SECONDS);
+            if (expire == null || expire <= 0) {
+                // SCAN后键可能已过期；永久键也不能作为有效订阅恢复，交由订阅丢失检查重新发起。
+                log.debug("[设备订阅恢复] 跳过无有效剩余期限的记录，key: {}, ttl: {}", redisKey, expire);
+                continue;
+            }
             taskInfo.setExpireTime(expire);
             result.add(taskInfo);
         }

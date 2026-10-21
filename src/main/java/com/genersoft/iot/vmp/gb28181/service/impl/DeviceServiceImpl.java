@@ -165,7 +165,10 @@ public class DeviceServiceImpl implements IDeviceService {
     public void dbStatusCheck(){
         // 处理设备状态
         Set<String> allDeviceIds = deviceStatusManager.getAll();
-        if (allDeviceIds != null && !allDeviceIds.isEmpty()) {
+        if (allDeviceIds == null) {
+            allDeviceIds = Collections.emptySet();
+        }
+        if (!allDeviceIds.isEmpty()) {
             // 除了记录的设备以外， 其他设备全部离线
             List<Device> onlineDevice = getAllOnlineDevice(userSetting.getServerId());
             if (onlineDevice != null && !onlineDevice.isEmpty()) {
@@ -205,29 +208,26 @@ public class DeviceServiceImpl implements IDeviceService {
                 if (taskInfo == null) {
                     continue;
                 }
+                if (taskInfo.getExpireTime() <= 0) {
+                    continue;
+                }
                 Device device = getDeviceByDeviceId(taskInfo.getDeviceId());
                 if (device == null || !device.isOnLine() || !allDeviceIds.contains(taskInfo.getDeviceId())) {
                     subscribeTaskRunner.removeSubscribe(taskInfo.getKey());
                     continue;
                 }
+                SubscribeTask subscribeTask = null;
                 if (SubscribeTaskForCatalog.name.equals(taskInfo.getName())) {
-                    device.setSubscribeCycleForCatalog((int)taskInfo.getExpireTime());
-                    SubscribeTask subscribeTask = SubscribeTaskForCatalog.getInstance(device, this::catalogSubscribeExpire, taskInfo.getTransactionInfo());
-                    if (subscribeTask != null) {
-                        subscribeTaskRunner.addSubscribe(subscribeTask);
-                    }
+                    subscribeTask = SubscribeTaskForCatalog.getInstance(device, this::catalogSubscribeExpire, taskInfo.getTransactionInfo());
                 }else if (SubscribeTaskForMobilPosition.name.equals(taskInfo.getName())) {
-                    device.setSubscribeCycleForMobilePosition((int)taskInfo.getExpireTime());
-                    SubscribeTask subscribeTask = SubscribeTaskForMobilPosition.getInstance(device, this::mobilPositionSubscribeExpire, taskInfo.getTransactionInfo());
-                    if (subscribeTask != null) {
-                        subscribeTaskRunner.addSubscribe(subscribeTask);
-                    }
+                    subscribeTask = SubscribeTaskForMobilPosition.getInstance(device, this::mobilPositionSubscribeExpire, taskInfo.getTransactionInfo());
                 }else if (SubscribeTaskForAlarm.name.equals(taskInfo.getName())) {
-                    device.setSubscribeCycleForAlarm((int)taskInfo.getExpireTime());
-                    SubscribeTask subscribeTask = SubscribeTaskForAlarm.getInstance(device, this::mobilPositionSubscribeExpire, taskInfo.getTransactionInfo());
-                    if (subscribeTask != null) {
-                        subscribeTaskRunner.addSubscribe(subscribeTask);
-                    }
+                    subscribeTask = SubscribeTaskForAlarm.getInstance(device, this::alarmSubscribeExpire, taskInfo.getTransactionInfo());
+                }
+                if (subscribeTask != null) {
+                    // TTL仅用于恢复剩余等待时间，不能覆盖设备配置的完整订阅周期，也不重复减500ms。
+                    subscribeTask.setDelayTime(System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(taskInfo.getExpireTime()));
+                    subscribeTaskRunner.addSubscribe(subscribeTask);
                 }
             }
         }

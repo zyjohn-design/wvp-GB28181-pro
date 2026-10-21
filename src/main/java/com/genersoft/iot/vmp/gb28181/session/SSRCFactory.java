@@ -8,6 +8,7 @@ import com.genersoft.iot.vmp.media.service.IMediaServerService;
 import com.genersoft.iot.vmp.media.zlm.ZLMRESTfulUtils;
 import com.genersoft.iot.vmp.media.zlm.dto.ZLMResult;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -51,6 +52,11 @@ public class SSRCFactory {
         String sipDomain = sipConfig.getDomain();
         domainPart = sipDomain.length() >= 8 ? sipDomain.substring(3, 8) : sipDomain;
         scheduler.scheduleAtFixedRate(this::rebuild, 5, 5, TimeUnit.SECONDS);
+    }
+
+    @PreDestroy
+    public void destroy() {
+        scheduler.shutdownNow();
     }
 
     public String getPlaySsrc(String mediaServerId) {

@@ -110,6 +110,7 @@ public class WebSecurityConfig {
         defaultExcludes.add("/api/emit");
         defaultExcludes.add("/favicon.ico");
         defaultExcludes.add("/api/user/login");
+        defaultExcludes.add("/api/server/health/ready");
         defaultExcludes.add("/index/hook/**");
         defaultExcludes.add("/api/device/query/snap/**");
         defaultExcludes.add("/index/hook/abl/**");
