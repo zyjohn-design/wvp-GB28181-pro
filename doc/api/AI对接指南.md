@@ -133,6 +133,9 @@ HTTP库常按GET自动重试。预置位、云台、启停等GET操作有副作�
 
 设置预置位表示把**摄像机当前所在位置**保存到编号；它没有接收经纬度或云台坐标的参数。要先把镜头移动到目标位置、停止并确认画面，再设置预置位。同号可能覆盖现有位置，使用前查询并由业务决定是否覆盖。
 
+按设备同步全部通道的预置位，可使用 [GET /api/front-end/preset/query/{deviceId}](routes/get-45b3877f720f.md)，可选 `timeout=60`（秒，范围1–300）。返回 `data=[{channelId,channelName,presets}]`，只含预置位非空的视频通道；`channelId` 是国标编号。必须先检查 `code=0`，才可把结果当成全量快照；非零时即使存在 `data` 也只是部分结果，不能用于删除同步。全部成功且无预置位时返回空数组。
+
+
 | 顺序 | 动作 | 方法与路径 | 输入 / 结果 |
 |---|---|---|---|
 | 1 | 查询设备现有预置位 | GET /api/common/channel/front-end/preset/query | channelId=整数gbId；data为数组，presetId按原字符串保存 |

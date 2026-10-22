@@ -105,6 +105,8 @@ def main():
     with zipfile.ZipFile(jar) as archive:
         for relative in ['db/preset-remark.sql', 'com/genersoft/iot/vmp/conf/PresetRemarkSchema.class',
                          'com/genersoft/iot/vmp/gb28181/service/impl/PresetRemarkService.class',
+                         'com/genersoft/iot/vmp/gb28181/service/impl/DevicePresetQueryService.class',
+                         'com/genersoft/iot/vmp/gb28181/bean/ChannelPresets.class',
                          'com/genersoft/iot/vmp/gb28181/task/deviceSubscribe/SubscribeTaskRunner.class',
                          'com/genersoft/iot/vmp/vmanager/server/ReadinessController.class']:
             require(archive.read('BOOT-INF/classes/' + relative) == (ROOT / 'target/classes' / relative).read_bytes(), 'JAR内容不一致：' + relative)
@@ -172,6 +174,9 @@ def main():
 底图与点位分别重试、地图入口缓存修复，以及设备点位 Canvas 批量绘制与拖动跟随优化。
 本包还修复2026-10-21现场启动失败：设备订阅恢复中的0秒Redis TTL改用毫秒精度，
 过滤已失效缓存，保留设备订阅周期；修复报警续订回调，关闭时停止SSRC重建线程。
+本次新增设备级预置位聚合查询：GET /api/front-end/preset/query/{{deviceId}}?timeout=60，
+仅返回有预置位的视频通道，包含通道编号、名称及预置位列表；同步了完整接口说明。
+只有code=0表示全量查询完成，非零code的部分结果不可用于删除同步。
 文档入口：docs/第三方对接接口手册.md，docs/api目录需一起保留。
 
 ## 适用环境与前置条件
@@ -209,6 +214,7 @@ cd {name}
 
 将/opt/gb28181-h5替换为实际部署目录。升级后检查后端启动日志、两个容器状态，
 浏览器强制刷新；验收播放、云台stop、预置位查询/设置/调用/删除/改名。
+验收设备级预置位查询：过滤空通道和目录、名称备注一致、部分失败时code非零。
 设置会保存镜头当前位置，同号可能覆盖，验收请使用专用测试编号。
 同时检查此前超时通道是否发起新点播、地图首次加载/切换页面/失败重试、点位显示和拖动跟随。
 

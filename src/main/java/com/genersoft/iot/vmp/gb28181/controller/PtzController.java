@@ -3,6 +3,9 @@ package com.genersoft.iot.vmp.gb28181.controller;
 
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
 import com.genersoft.iot.vmp.gb28181.service.impl.PresetRemarkService;
+import com.genersoft.iot.vmp.gb28181.service.impl.DevicePresetQueryService;
+import com.genersoft.iot.vmp.gb28181.bean.ChannelPresets;
+import java.util.List;
 import com.genersoft.iot.vmp.conf.security.JwtUtils;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
@@ -31,6 +34,9 @@ import org.springframework.web.context.request.async.DeferredResult;
 @RestController
 @RequestMapping("/api/front-end")
 public class PtzController {
+
+    @Autowired
+    private DevicePresetQueryService devicePresetQueryService;
 
     @Autowired
     private PresetRemarkService presetRemarkService;
@@ -221,6 +227,22 @@ public class PtzController {
 		}
 		frontEndCommand(deviceId, channelId, cmdCode, speed, 0, 0);
 	}
+
+    @Operation(summary = "查询设备所有视频通道的预置位，仅返回有预置位的通道",
+            description = "逐通道实时查询；code=0 才表示完整结果，非0时data可能包含部分结果，不可作为全量同步依据。",
+            security = @SecurityRequirement(name = JwtUtils.HEADER))
+    @Parameter(name = "deviceId", description = "设备国标编号", required = true)
+    @Parameter(name = "timeout", description = "整体超时秒数，默认60，范围1-300；单通道最多等待5秒")
+    @GetMapping("/preset/query/{deviceId}")
+    public DeferredResult<WVPResult<List<ChannelPresets>>> queryDevicePresets(@PathVariable String deviceId,
+            @RequestParam(defaultValue = "60") int timeout) {
+        if (timeout < 1 || timeout > 300) {
+            throw new ControllerException(400, "timeout必须为1-300之间的秒数");
+        }
+        Device device = deviceService.getDeviceByDeviceId(deviceId);
+        Assert.notNull(device, "设备不存在");
+        return devicePresetQueryService.query(device, timeout);
+    }
 
 	@Operation(summary = "查询预置位", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)

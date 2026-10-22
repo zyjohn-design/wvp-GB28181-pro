@@ -4,8 +4,8 @@
   "entry": "../第三方对接接口手册.md",
   "aiGuide": "AI对接指南.md",
   "integrationGuide": "接入指南.md",
-  "routeCount": 413,
-  "modelCount": 172,
+  "routeCount": 414,
+  "modelCount": 173,
   "routes": [
     {
       "method": "GET",
@@ -5515,6 +5515,39 @@
         }
       ],
       "models": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/front-end/preset/query/{deviceId}",
+      "summary": "查询设备所有视频通道的预置位，仅返回有预置位的通道",
+      "module": "PtzController",
+      "document": "routes/get-45b3877f720f.md",
+      "moduleDocument": "modules/PtzController.md#route-get-45b3877f720f",
+      "source": "src/main/java/com/genersoft/iot/vmp/gb28181/controller/PtzController.java",
+      "authentication": "access-token 或 api-key；已登录",
+      "contentType": "无请求体，无须 Content-Type",
+      "returnJavaType": "DeferredResult<WVPResult<List<ChannelPresets>>>",
+      "parameters": [
+        {
+          "name": "deviceId",
+          "javaType": "String",
+          "location": "path",
+          "required": "是",
+          "description": "设备国标编号"
+        },
+        {
+          "name": "timeout",
+          "javaType": "int",
+          "location": "query/form",
+          "required": "否",
+          "description": "整体超时秒数，默认60，范围1-300；单通道最多等待5秒；默认值：60"
+        }
+      ],
+      "models": [
+        "models/ChannelPresets-da0387eb258f.md",
+        "models/Preset-c088dbe038f5.md",
+        "models/WVPResult-670c07f20df6.md"
+      ]
     },
     {
       "method": "GET",
@@ -13731,6 +13764,11 @@
       "name": "BasicParam",
       "source": "src/main/java/com/genersoft/iot/vmp/gb28181/bean/BasicParam.java",
       "document": "models/BasicParam-b9661079b152.md"
+    },
+    {
+      "name": "ChannelPresets",
+      "source": "src/main/java/com/genersoft/iot/vmp/gb28181/bean/ChannelPresets.java",
+      "document": "models/ChannelPresets-da0387eb258f.md"
     },
     {
       "name": "CommonGBChannel",

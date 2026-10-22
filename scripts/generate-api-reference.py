@@ -15,7 +15,7 @@ JAVA = ROOT / "src/main/java/com/genersoft/iot/vmp"
 OUT = ROOT / "doc/_content/api"
 MAPPING = re.compile(r"@(Get|Post|Put|Patch|Delete|Request)Mapping\s*\(")
 METHOD = re.compile(r"(?m)^\s*(?:public|private|protected)\s+(?:(?:synchronized|static)\s+)*([^\n(]+?)\s+(\w+)\s*\(")
-FIELD = re.compile(r"(?m)^\s*(?:private|protected|public)\s+(?!static|final)([\w<>?, .\[\]]+?)\s+(\w+)\s*(?:=[^;]*)?;")
+FIELD = re.compile(r"(?m)^\s*(?:private|protected|public)\s+(?!static)(?:final\s+)?([\w<>?, .\[\]]+?)\s+(\w+)\s*(?:=[^;]*)?;")
 SPECIAL = {
     "page": "页码，从 1 开始", "count": "每页记录数", "query": "按名称或编号筛选，具体范围由该接口实现决定",
     "deviceId": "设备或下级平台国标编号", "channelId": "通道标识；直连接口为国标编号，/api/common/channel 接口为数据库整数 ID",

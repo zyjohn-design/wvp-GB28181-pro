@@ -8,6 +8,7 @@
 | <a id="route-get-d9a98429a477"></a>`GET` | [/api/front-end/ptz/{deviceId}/{channelId}](../routes/get-d9a98429a477.md) | 云台控制 |
 | <a id="route-get-98367c9e294b"></a>`GET` | [/api/front-end/fi/iris/{deviceId}/{channelId}](../routes/get-98367c9e294b.md) | 光圈控制 |
 | <a id="route-get-5e9267054d4c"></a>`GET` | [/api/front-end/fi/focus/{deviceId}/{channelId}](../routes/get-5e9267054d4c.md) | 聚焦控制 |
+| <a id="route-get-45b3877f720f"></a>`GET` | [/api/front-end/preset/query/{deviceId}](../routes/get-45b3877f720f.md) | 查询设备所有视频通道的预置位，仅返回有预置位的通道 |
 | <a id="route-get-8292b5288e78"></a>`GET` | [/api/front-end/preset/query/{deviceId}/{channelId}](../routes/get-8292b5288e78.md) | 查询预置位 |
 | <a id="route-get-507d4e453fab"></a>`GET` | [/api/front-end/preset/add/{deviceId}/{channelId}](../routes/get-507d4e453fab.md) | 预置位指令-设置预置位 |
 | <a id="route-post-e1542d744ac0"></a>`POST` | [/api/front-end/preset/remark/{deviceId}/{channelId}](../routes/post-e1542d744ac0.md) | 修改平台预置位名称备注（不下发设备） |

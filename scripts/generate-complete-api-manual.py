@@ -404,6 +404,7 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
                  summary: str, return_type: str, parameters: list[tuple], registry: dict[str, list[tuple]]) -> list[str]:
     parameters = preset_parameters(route, parameters)
     preset = preset_route(route)
+    device_presets = route == "/api/front-end/preset/query/{deviceId}"
     remark = preset and "/remark" in route
     control = preset and (route == "/api/v1/control/preset" or any("/" + action in route for action in ("add", "call", "delete")))
     public = is_public(route)
@@ -438,6 +439,9 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
     if preset:
         lines += ["#### 业务约定", "",
                   "参数、名称优先级、应答语义与完整示例见[第8.2节](#82-预置位)。名称备注只保存到平台，不进入国标控制指令。", ""]
+        if device_presets:
+            lines += ["按设备实时逐个查询全部视频通道，排除目录和预置位为空的通道；名称优先使用平台备注。整体timeout默认60秒，范围1–300，每个通道最多等待5秒。整体超时后不再发起后续查询。", "",
+                      "只有code=0表示全量查询完成；全部成功且无预置位时data=[]。部分通道失败或未完成时code非0，data仅含已成功查到的非空通道，不可依据此部分结果删除已有预置位。", ""]
         if control:
             lines += ["收到设备 SIP 200 OK 后才返回 code=0；拒绝保留 SIP 状态码，SIP/跨节点应答超时返回408。设备已接收但备注保存失败返回100；不应重新设置位置，应通过修改名称接口补存。网络错误或超时后不自动重试。", ""]
         elif remark:
@@ -453,7 +457,7 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
     elif raw and unwrap(return_type) in {"void", "Void"}:
         lines.append(response_row("响应体", "empty", "成功时无业务响应体"))
     else:
-        response_type = "List<Preset>" if preset and "/query" in route else return_type
+        response_type = "List<Preset>" if preset and "/query" in route and not device_presets else return_type
         rows = response_fields(response_type, path, registry, not raw)
         if readiness:
             rows = [("status", "string", "UP表示已完成启动恢复；NOT_READY表示尚未就绪或正在关闭；HTTP状态分别为200和503")]
@@ -466,6 +470,15 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
         elif preset:
             rows = [(field, typ, "最终显示名称：平台备注→设备名称→自动名称" if field == "data[].presetName" else desc)
                     for field, typ, desc in rows]
+        if device_presets:
+            rows = [("code", "integer", "0表示全量完成；非0表示失败或结果不完整"),
+                    ("msg", "string", "结果说明，部分失败时提示未完成数量"),
+                    ("data", "array", "仅含有预置位的通道；无匹配为[]；失败时可能是部分结果或null"),
+                    ("data[].channelId", "string", "通道国标编号"),
+                    ("data[].channelName", "string", "通道名称"),
+                    ("data[].presets", "array", "非空预置位列表"),
+                    ("data[].presets[].presetId", "string", "预置位编号，控制前校验"),
+                    ("data[].presets[].presetName", "string", "最终显示名称：平台备注→设备名称→自动名称")]
         rows = list({field: (field, typ, desc) for field, typ, desc in rows}.values())
         if not raw and not control and not remark:
             rows = [(field, json_type(unwrap(response_type)) if field == "data" and typ == "object / array / primitive / null" else typ, desc)
@@ -489,6 +502,9 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
             payload = {"code": 0, "msg": "成功", "data": "预置点1"}
         elif preset:
             payload = {"code": 0, "msg": "成功", "data": [{"presetId": "1", "presetName": "东门入口"}]}
+        if device_presets:
+            payload = {"code": 0, "msg": "成功", "data": [{"channelId": "34020000001320000001",
+                       "channelName": "东门球机", "presets": [{"presetId": "1", "presetName": "入口"}]}]}
         lines += ["```json", json.dumps(payload, ensure_ascii=False, indent=2), "```", ""]
     lines += ["#### 错误响应", ""]
     if readiness:
@@ -496,7 +512,10 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
     elif raw:
         lines += ["```http", "HTTP/1.1 4xx/5xx", "Content-Type: <以实际响应头为准>", "", "<格式由该兼容协议或媒体服务决定>", "```", ""]
     else:
-        lines += ["```json", json.dumps({"code": 100, "msg": "失败：请检查具体错误说明", "data": None}, ensure_ascii=False, indent=2), "```", ""]
+        error = {"code": 100, "msg": "失败：请检查具体错误说明", "data": None}
+        if device_presets:
+            error = {"code": 100, "msg": "有 1 个通道查询失败或未完成，结果不完整，请勿作为全量同步依据", "data": payload["data"]}
+        lines += ["```json", json.dumps(error, ensure_ascii=False, indent=2), "```", ""]
     lines += ["#### 错误码", "", "| code | msg | 说明 |", "|---|---|---|"]
     if readiness:
         lines += ["| HTTP 200 | UP | 全部启动恢复任务完成，可接收请求 |", "| HTTP 503 | NOT_READY | 尚未就绪或正在关闭；连接失败同样不能视为就绪 |"]
@@ -515,8 +534,8 @@ def render_route(number: int, title: str, cls: str, path: Path, verb: str, route
         if "/preset/" in route and any(segment in route for segment in ("/add", "/call", "/delete")):
             lines.append("| 100 | 预置位编号必须为1-255之间的整数 | `presetId` 无效；已知 PresetID_N 格式兼容支持 |")
     lines += ["", "#### 变更记录", "", "| 版本 | 日期 | 说明 | 作者 |", "|---|---|---|---|",
-              f"| v1.0 | {'2026-10-21' if remark else INITIAL_VERSION_DATE} | 根据当前源码首次收录；具体业务规则以源码和部署配置为准 | 项目维护者（未指定个人） |"]
-    if preset and not remark:
+              f"| v1.0 | {'2026-10-22' if device_presets else '2026-10-21' if remark else INITIAL_VERSION_DATE} | 根据当前源码首次收录；具体业务规则以源码和部署配置为准 | 项目维护者（未指定个人） |"]
+    if preset and not remark and not device_presets:
         lines.append("| v1.1 | 2026-10-21 | 同步平台名称备注、参数校验、SIP应答及响应示例 | 项目维护者（未指定个人） |")
     lines += ["", "---", ""]
     return lines
@@ -644,7 +663,7 @@ def generate_split_docs(groups, models, registry) -> None:
                 "models": [{"name": m[0], "source": str(m[2].relative_to(ROOT)), "document": model_files[str(m[2])]} for m in models]}
     outputs[OUT / "route-index.json"] = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
     outputs[MANUAL] = "\n".join([
-        "# WVP-PRO 接口文档", "", "版本：2026-10-21。本文是统一入口，接口按需读取，避免一次加载全部字段表。", "",
+        "# WVP-PRO 接口文档", "", "版本：2026-10-22。本文是统一入口，接口按需读取，避免一次加载全部字段表。", "",
         f"覆盖 **{len(routes)} 条路由、{len(groups)} 个 Controller、{len(models)} 个模型**。部署地址、凭证、模块开关与可用媒体协议由部署方提供。", "",
         "| 阅读目的 | 文档 |", "|---|---|",
         "| AI工具开始对接 | [AI对接指南](api/AI对接指南.md)：读取顺序、标识映射、调用流程、编码与错误处理 |",
